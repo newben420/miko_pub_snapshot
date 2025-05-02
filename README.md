@@ -40,4 +40,6 @@ Miko, "Kiko-extended Milo", a high yield (profitable for me) and flexible degen 
 
 - By the way, I let ChatGPT decide the names, personalities, and generate the pictures for my projects and their instances. It's fun.
 
+- Also, I switched back from Typescript to CommonJS cause I got tired of Typescript (It's great though, I have no reason). Maybe I no longer liked how my scripts looked after compilation (Though I know I can take care of it in the TS configuration JSON file).
+
 God's speed!!!
