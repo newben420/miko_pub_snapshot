@@ -38,4 +38,6 @@ Miko, "Kiko-extended Milo", a high yield (profitable for me) and flexible degen 
 
 - I give each of my script a personality, hence the ridiculous names (and pictures which are not included). Not important, but I've got other instances of Miko called Nova (automated, configured to follow promising tokens to the very end, extracting every possible profit) and Frostbyte (configured for high-frequency, low-marketcap, strict-audit sniping, including the priority fee tracker and decision maker).
 
+- By the way, I let ChatGPT decide the names, personalities, and generate the pictures for my projects and their instances. It's fun.
+
 God's speed!!!
