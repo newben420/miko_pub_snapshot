@@ -16,6 +16,8 @@ Miko, "Kiko-extended Milo", a high yield (profitable for me) and flexible degen 
 
 - Unlike Kiko and my other degen scripts, Miko/Milo do not include wallet management, hence, not needing to mirror the wallet balance, take note of all fees and transactions, smartly increase per-trade capital to convert profits into capital for exponential growth and operate a hedgefund-like custom "grid" trading method that I utilize in my other bots. Miko also, by default, does not pay priority fees, due to its original nature of being a manual tool without needing superfast transaction executions, unlike my other scripts that have components to keep track of priority fee trends, and optimize the values they use.
 
+- Also, I stripped off the options to use Pumpportal's lightning API to trade and TPU to submit local transactions since I barely use them.
+
 - While trading with Miko, I found myself consistently creating limit orders targetting certain marketcap and other conditions, so I added features to automate these processes, added more risk-management, thereby making Miko flexible enough to be automated.
 
 - So, Miko is not just a "Kiko-extended Milo", it is powerful enough, yet flexible to be configured for various cases, whether you are targeting established coins or just sniping newly created tokens. Its features include but not limited to the following:
