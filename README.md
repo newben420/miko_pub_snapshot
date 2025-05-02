@@ -1,6 +1,6 @@
 # Miko
 
-First off, this sourcecode is public because I figured out that most people would not know how to properly configure it (to the extent of competing against me, using it against me) without understanding how "degen" and this project works, so I do not have to really gatekeep it.
+First off, this sourcecode is public because I figured out that most people would not know how to properly configure it (to the extent of competing against me, using it against me) without understanding how "degen" and this project work, so I do not have to really gatekeep it.
 
 Miko, "Kiko-extended Milo", a high yield (profitable for me) and flexible degen script, is made from two other scripts "Milo" and "Kiko". Let me explain below:
 
