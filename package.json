@@ -1,0 +1,29 @@
+{
+  "name": "miko",
+  "version": "1.0.0",
+  "description": "Kiko-extended automation-enhanced Milo. Milo is a high-yield easy-to-use manual degen tool.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "axios": "^1.7.9",
+    "body-parser": "^1.20.3",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "natural": "^8.0.1",
+    "node-fetch": "^3.3.2",
+    "node-telegram-bot-api": "^0.66.0",
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.8.1",
+    "string-similarity": "^4.0.4",
+    "technicalindicators": "^3.1.0",
+    "telegraf": "^4.16.3",
+    "tpu-client": "github:rileyg98/tpu-client",
+    "ws": "^8.18.0"
+  }
+}
