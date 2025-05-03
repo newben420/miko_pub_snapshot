@@ -9,6 +9,7 @@ const FFF = require("../lib/fff");
 const SolPrice = require("./sol_price");
 const getTimeElapsed = require("../lib/get_time_elapsed");
 let TelegramEngine = null;
+let WhaleEngine = null;
 
 const METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
@@ -135,6 +136,9 @@ class TokenEngine {
                 TokenEngine.#stopObservation(mint);
                 try {
                     const TelegramEngine = require("./telegram");
+                    if (!WhaleEngine) {
+                        WhaleEngine = require("./whale").WhaleEngine;
+                    }
                     TelegramEngine.sendMessage(`❌ ${token.name} \\(${token.symbol}\\) has been removed after ${getTimeElapsed(token.last_updated, Date.now())} since it was last updated\n\nRegistered ⏱️ ${getTimeElapsed(token.reg_timestamp, Date.now())} ago${token.current_marketcap ? `\nCurrent MC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPeak MC 📈 ${Site.BASE} ${FFF(token.max_marketcap)} \\(USD ${FFF(token.max_marketcap * SolPrice.get())}\\)\nLeast MC 📈 ${Site.BASE} ${FFF(token.min_marketcap)} \\(USD ${FFF(token.min_marketcap * SolPrice.get())}\\)` : ''}${(token.pnl || token.max_pnl || token.min_pnl) ? `\nPnL 💰 ${Site.BASE} ${FFF(token.pnl_base)} \\(USD ${FFF(token.pnl_base * SolPrice.get())} | *${token.pnl.toFixed(2)}%*\\)\nMax PnL 💰 ${token.max_pnl.toFixed(2)}%\nMin PnL 💰 ${token.min_pnl.toFixed(2)}%\nEntry Reasons 🔵 ${Array.from(token.entry_reasons).map(r => `\`${r}\``).join(" | ")}\nExit Reasons 🟠 ${Array.from(token.exit_reasons).map(r => `\`${r}\``).join(" | ")}` : ``}\n\n\`${token.mint}\``, mid => {
                         if (TokenEngine.#tokens[mint]) {
                             if (TokenEngine.#tokens[mint].pnl_base) {
@@ -149,6 +153,10 @@ class TokenEngine {
                                     }
                                 }
                             }
+                        }
+                        const wh = WhaleEngine.removeForTelegram(token.mint, TokenEngine.#tokens[mint].name, TokenEngine.#tokens[mint].symbol);
+                        if (wh) {
+                            TelegramEngine.sendMessage(wh);
                         }
                         delete TokenEngine.#tokens[mint];
                         delete TokenEngine.#pdLastExec[mint];
@@ -700,8 +708,11 @@ class TokenEngine {
         return new Promise(async (resolve, reject) => {
             const token = TokenEngine.getToken(mint);
             if (token) {
+                if (!WhaleEngine) {
+                    WhaleEngine = require("./whale").WhaleEngine;
+                }
                 if (Site.SIMULATION) {
-                    if (token.current_price) {
+                    if (token.current_price && WhaleEngine.enter(mint)) {
                         const amtBought = amt / token.current_price;
                         token.amount_held += amtBought;
                         token.total_bought_base += amt;
@@ -726,6 +737,7 @@ class TokenEngine {
                             TokenEngine.#tokens[mint].bought_once = true;
                         }
                         token.entry_reasons.add(reason);
+                        WhaleEngine.addSelfAction(mint, `B${amt}`);
                         resolve(amtBought);
                     }
                     else {
@@ -736,6 +748,7 @@ class TokenEngine {
                     const bought = await TokenEngine.#trade("buy", mint, amt, retries, marketcapLimit);
                     if (bought.succ) {
                         token.entry_reasons.add(reason);
+                        WhaleEngine.addSelfAction(mint, `B${amt}`);
                         resolve(bought.message);
                     }
                     else {
@@ -763,6 +776,9 @@ class TokenEngine {
         return new Promise(async (resolve, reject) => {
             const token = TokenEngine.getToken(mint);
             if (token) {
+                if (!WhaleEngine) {
+                    WhaleEngine = require("./whale").WhaleEngine;
+                }
                 if (Site.SIMULATION) {
                     if (token.current_price) {
                         const amtToSell = (perc / 100) * token.amount_held;
@@ -772,6 +788,7 @@ class TokenEngine {
                             token.total_sold_base += solAmt;
                         }
                         token.exit_reasons.add(reason);
+                        WhaleEngine.addSelfAction(mint, `S${perc}`);
                         resolve(solAmt);
                     }
                     else {
@@ -782,6 +799,7 @@ class TokenEngine {
                     const sold = await TokenEngine.#trade("sell", mint, `${perc}%`, retries, marketcapLimit);
                     if (sold.succ) {
                         token.exit_reasons.add(reason);
+                        WhaleEngine.addSelfAction(mint, `S${perc}`);
                         resolve(sold.message);
                     }
                     else {
@@ -815,80 +833,88 @@ class TokenEngine {
         marketcapLimit = [0, 0],
         signCache = [],
     ) => {
+        if (!WhaleEngine) {
+            WhaleEngine = require("./whale").WhaleEngine;
+        }
         return new Promise(async (resolve, reject) => {
-            const body = {
-                action,
-                publicKey: Site.DE_LOCAL_PUB_KEY,
-                mint,
-                amount: amt,
-                denominatedInSol: action === "buy" ? "true" : "false",
-                slippage: action === "buy" ? Site.DE_SLIPPAGE_PERC_ENTRY : Site.DE_SLIPPAGE_PERC_EXIT,
-                pool: Site.DE_POOL,
-                priorityFee: 0,
-            }
-            try {
-                const response = await fetch(Site.DE_LOCAL_URL, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(body)
-                });
-                if (response.status === 200) {
-                    const data = await response.arrayBuffer();
-                    const tx = VersionedTransaction.deserialize(new Uint8Array(data));
-                    const signerKeyPair = Site.DE_LOCAL_KEYPAIR;
-                    /**
-                     * @type {string}
-                     */
-                    let signature;
-                    tx.sign([signerKeyPair]);
-                    /**
-                     * @type {Connection}
-                     */
-                    const conn = TokenEngine.#conn;
-                    signature = await conn.sendTransaction(tx, {
-                        skipPreflight: Site.PRODUCTION,
+            if((action == "buy" && WhaleEngine.enter(mint)) || (action == "sell")){
+                const body = {
+                    action,
+                    publicKey: Site.DE_LOCAL_PUB_KEY,
+                    mint,
+                    amount: amt,
+                    denominatedInSol: action === "buy" ? "true" : "false",
+                    slippage: action === "buy" ? Site.DE_SLIPPAGE_PERC_ENTRY : Site.DE_SLIPPAGE_PERC_EXIT,
+                    pool: Site.DE_POOL,
+                    priorityFee: 0,
+                }
+                try {
+                    const response = await fetch(Site.DE_LOCAL_URL, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(body)
                     });
-                    setTimeout(async () => {
-                        if (TokenEngine.#tokens[mint]) {
-                            let token = TokenEngine.#tokens[mint];
-                            const signIndex = TokenEngine.#signatures.indexOf(signature);
-                            if (signIndex >= 0 || signCache.some(sign => TokenEngine.#signatures.includes(sign))) {
-                                // this trade was successful
-                                if (action == "sell" && amt == "100%" && Site.TRADE_AUTO_RECOVERY) {
-                                    TokenEngine.recovery();
+                    if (response.status === 200) {
+                        const data = await response.arrayBuffer();
+                        const tx = VersionedTransaction.deserialize(new Uint8Array(data));
+                        const signerKeyPair = Site.DE_LOCAL_KEYPAIR;
+                        /**
+                         * @type {string}
+                         */
+                        let signature;
+                        tx.sign([signerKeyPair]);
+                        /**
+                         * @type {Connection}
+                         */
+                        const conn = TokenEngine.#conn;
+                        signature = await conn.sendTransaction(tx, {
+                            skipPreflight: Site.PRODUCTION,
+                        });
+                        setTimeout(async () => {
+                            if (TokenEngine.#tokens[mint]) {
+                                let token = TokenEngine.#tokens[mint];
+                                const signIndex = TokenEngine.#signatures.indexOf(signature);
+                                if (signIndex >= 0 || signCache.some(sign => TokenEngine.#signatures.includes(sign))) {
+                                    // this trade was successful
+                                    if (action == "sell" && amt == "100%" && Site.TRADE_AUTO_RECOVERY) {
+                                        TokenEngine.recovery();
+                                    }
                                 }
-                            }
-                            else {
-                                // this trade was not successful after the timeout
-                                const mc = token.current_marketcap * (Site.BASE_DENOMINATED ? 1 : SolPrice.get());
-                                const mcValid = (mc >= Math.abs(marketcapLimit[0] || 0)) && (mc <= Math.abs(marketcapLimit[1] || Infinity));
-                                if (mcValid && retries > 0) {
-                                    // conditions fulfilled
-                                    const retried = await TokenEngine.#trade(action, mint, amt, (retries - 1), marketcapLimit, signCache.concat([signature]));
-                                    if (retried.succ && Site.TRADE_SEND_RETRY_NOTIFICATION) {
-                                        try {
-                                            if (!TelegramEngine) {
-                                                TelegramEngine = require("./telegram");
+                                else {
+                                    // this trade was not successful after the timeout
+                                    const mc = token.current_marketcap * (Site.BASE_DENOMINATED ? 1 : SolPrice.get());
+                                    const mcValid = (mc >= Math.abs(marketcapLimit[0] || 0)) && (mc <= Math.abs(marketcapLimit[1] || Infinity));
+                                    if (mcValid && retries > 0) {
+                                        // conditions fulfilled
+                                        const retried = await TokenEngine.#trade(action, mint, amt, (retries - 1), marketcapLimit, signCache.concat([signature]));
+                                        if (retried.succ && Site.TRADE_SEND_RETRY_NOTIFICATION) {
+                                            try {
+                                                if (!TelegramEngine) {
+                                                    TelegramEngine = require("./telegram");
+                                                }
+                                                TelegramEngine.sendMessage(`↩️ ${action.toUpperCase()} RETRY\n\n*${token.name} \\(${token.symbol}\\)*\nAmount 💰 ${action == "buy" ? Site.BASE : ""} ${amt}\nRetries Left 👍 ${(retries - 1)}\nSignature 🪧 \`${retried.message}\``);
+                                            } catch (error) {
+                                                Log.dev(error)
                                             }
-                                            TelegramEngine.sendMessage(`↩️ ${action.toUpperCase()} RETRY\n\n*${token.name} \\(${token.symbol}\\)*\nAmount 💰 ${action == "buy" ? Site.BASE : ""} ${amt}\nRetries Left 👍 ${(retries - 1)}\nSignature 🪧 \`${retried.message}\``);
-                                        } catch (error) {
-                                            Log.dev(error)
                                         }
                                     }
                                 }
                             }
-                        }
-                    }, Site.TRADE_RETRY_TIMEOUT_MS);
-                    TokenEngine.successfulTx++;
-                    resolve(new Res(true, signature));
-                } else {
-                    resolve(new Res(false, response.statusText));
+                        }, Site.TRADE_RETRY_TIMEOUT_MS);
+                        TokenEngine.successfulTx++;
+                        resolve(new Res(true, signature));
+                    } else {
+                        resolve(new Res(false, response.statusText));
+                    }
+                } catch (error) {
+                    Log.dev(error);
+                    resolve(new Res(false, "SERVER"));
                 }
-            } catch (error) {
-                Log.dev(error);
-                resolve(new Res(false, "SERVER"));
+            }
+            else{
+                resolve(new Res(false, "Whale Corrected Buy"));
             }
         });
     }

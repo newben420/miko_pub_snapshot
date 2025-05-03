@@ -12,6 +12,7 @@ const Regex = require('../lib/regex');
 const getDateTime = require('../lib/get_date_time');
 const ObserverEngine = require('../kiko/observer');
 const GraduateEngine = require('../kiko/graduate');
+const { WhaleEngine } = require('./whale');
 
 let SignalManager = null;
 
@@ -254,7 +255,7 @@ class TelegramEngine {
             SignalManager = require("./signal_manager");
         }
 
-        let message = `🤖 *Automation Flags*\n\n⏱️ ${getDateTime()}\n\n`;
+        let message = `🤖 *Automation Interface*\n\n⏱️ ${getDateTime()}\n\n`;
 
         message += `${Site.SIMULATION ? `🟢` : `🔴`} Simulation\n`;
         message += `${TokenEngine.autoBuy ? `🟢` : `🔴`} Auto Buy\n`;
@@ -263,6 +264,8 @@ class TelegramEngine {
         message += `${GraduateEngine.acceptToken ? `🟢` : `🔴`} Accept Token\n`;
         message += `${SignalManager.buyAlert ? `🟢` : `🔴`} Buy Alert\n`;
         message += `${SignalManager.sellAlert ? `🟢` : `🔴`} Sell Alert\n`;
+        message += `${WhaleEngine.useEntry ? `🟢` : `🔴`} Whale Entry\n`;
+        message += `${WhaleEngine.useExit ? `🟢` : `🔴`} Whale Exit\n`;
 
         /**
          * @type {TelegramBot.InlineKeyboardButton[][]}
@@ -302,6 +305,16 @@ class TelegramEngine {
                 {
                     text: `${SignalManager.sellAlert ? `🔴` : `🟢`} Sell Alert`,
                     callback_data: `auto_sa_${SignalManager.sellAlert ? `false` : `true`}`,
+                },
+            ],
+            [
+                {
+                    text: `${WhaleEngine.useEntry ? `🔴` : `🟢`} Whale Entry`,
+                    callback_data: `auto_wen_${WhaleEngine.useEntry ? `false` : `true`}`,
+                },
+                {
+                    text: `${WhaleEngine.useExit ? `🔴` : `🟢`} Whale Exit`,
+                    callback_data: `auto_wex_${WhaleEngine.useExit ? `false` : `true`}`,
                 },
             ]
         ];
@@ -683,6 +696,12 @@ class TelegramEngine {
                             }
                             else if (variable == "sm") {
                                 Site.SIMULATION = newValue;
+                            }
+                            else if (variable == "wen") {
+                                WhaleEngine.useEntry = newValue;
+                            }
+                            else if (variable == "wex") {
+                                WhaleEngine.useExit = newValue;
                             }
                             TelegramEngine.#bot.answerCallbackQuery(callbackQuery.id);
                             const { message, inline } = TelegramEngine.#getAutoContent();

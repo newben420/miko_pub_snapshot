@@ -21,6 +21,7 @@ const Regex = require('./lib/regex');
 const LaunchEngine = require('./kiko/launch');
 const ObserverEngine = require('./kiko/observer');
 const { obv } = require('technicalindicators');
+const { WhaleEngine } = require('./engine/whale');
 
 
 app.disable("x-powered-by");
@@ -125,6 +126,7 @@ const proceedAfterInit = () => {
                 // OTHER SUBSCRIBED TRANSACTIONS
                 TokenEngine.newTrade(message);
                 ObserverEngine.newTrade(message);
+                WhaleEngine.newTrade(message);
             }
         }
     });
@@ -211,4 +213,4 @@ init(succ => {
     }
 });
 
-// console.log(Site.AU_SELL);
+// console.log(Site.AU_WHALE_EXIT);

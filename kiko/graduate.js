@@ -1,4 +1,5 @@
 const TokenEngine = require("../engine/token");
+const { WhaleEngine } = require("../engine/whale");
 const Site = require("../env");
 const Log = require("../lib/log");
 
@@ -123,6 +124,7 @@ class GraduateEngine {
                     if (!TokenEngine.getToken(mint)) {
                         const registered = await TokenEngine.registerToken(mint);
                         if (registered) {
+                            WhaleEngine.newToken(mint, raw_audit_data.top_holders);
                             const audit = human_audit_data || {};
                             const logMode = `\n\`\`\`\n${Object.keys(audit).map(key => `${key}: ${audit[key]}`).join("\n")}\`\`\``;
                             const token = TokenEngine.getToken(mint);

@@ -106,6 +106,7 @@ class AuditEngine {
             const auditHolders = () => {
                 return new Promise((resolve, reject) => {
                     const holders = Object.keys(holdersByPerc).filter(trader => trader != token.developer);
+                    const actualTopHolders = Object.keys(token.holders).map(x => ({trader: x, amount: token.holders[x]})).sort((a, b) => b.amount - a.amount).slice(0, 10);
                     const totalHolders = holders.length;
                     const topHoldersCount = Math.min(totalHolders, 10);
                     const sortedHolders = holders.sort((a, b) => holdersByPerc[b] - holdersByPerc[a]);
@@ -115,6 +116,7 @@ class AuditEngine {
                     temp.holders_count = totalHolders;
                     temp.holders_top_perc = topHoldersTotalPerc;
                     temp.holders_sus_score = susScore;
+                    temp.top_holders = actualTopHolders;
                     resolve(true);
                 });
             }

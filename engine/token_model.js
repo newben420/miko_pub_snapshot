@@ -277,6 +277,12 @@ class Token {
     executed_peak_drops;
 
     /**
+     * Array of index of all the whale exits executed
+     * @type {number[]}
+     */
+    executed_whale_exits;
+
+    /**
      * Flag to indicate if peak drop exit is enabled for this token
      * @type {boolean}
      */
@@ -358,6 +364,7 @@ class Token {
         this.reg_timestamp = Date.now();
         this.bought_once = amount_held != 0;
         this.executed_peak_drops = [];
+        this.executed_whale_exits = [];
         this.peak_drop_enabled = Site.AU_AUTO_PEAKDROP;
         this.pnl_base = 0;
         this.pnl = 0;

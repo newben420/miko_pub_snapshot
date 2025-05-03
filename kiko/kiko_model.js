@@ -355,6 +355,11 @@ class AuditData {
     buy_vol_perc;
 
     /**
+     * @type {any[]}
+     */
+    top_holders;
+
+    /**
      * Converts object to a normal JS object
      * @returns {Record<string, any>}
      */
@@ -380,6 +385,7 @@ class AuditData {
             trades: obj.trades || 0,
             buy_perc: obj.buy_perc || 0,
             buy_vol_perc: obj.buy_vol_perc || 0,
+            top_holders: obj.top_holders || [],
         };
     }
 
@@ -451,6 +457,7 @@ class AuditData {
         this.trades = null;
         this.buy_perc = null;
         this.buy_vol_perc = null;
+        this.top_holders = null;
     }
 }
 

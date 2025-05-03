@@ -63,10 +63,14 @@ class Site {
     static AU_SELL = (process.env.AU_SELL || "").split("|").filter(x => x.length > 0).map(x => x.split(" ").filter(y => y.length > 0).map(y => parseFloat(y)).filter(y => !Number.isNaN(y))).filter(x => x.length >= 2 && x.length <= 5).map(x => ({ pnl: x[0], perc: x[1], trailing: (x[2] || 0) > 0, minPnL: x[3] ?? Number.MIN_VALUE, maxPnL: x[4] || Number.MAX_VALUE })).filter(x => x.pnl != 0 && x.perc >= 1 && x.perc <= 100);
     static AU_BUY = (process.env.AU_BUY || "").split("|").filter(x => x.length > 0).map(x => x.split(" ").filter(y => y.length > 0).map(y => parseFloat(y)).filter(y => !Number.isNaN(y))).filter(x => x.length == 4).map(x => ({ mc: x[0], buyAmt: x[1], minTime: x[2], maxTime: x[3] })).filter(x => x.buyAmt > 0 && x.minTime >= 0 && x.maxTime >= 0 && (x.maxTime > x.minTime || x.maxTime == 0));
     static AU_PEAKDROP = (process.env.AU_PEAKDROP || "").split("|").filter(x => x.length > 0).map(x => x.split(" ").filter(y => y.length > 0).map(y => parseFloat(y)).filter(y => !Number.isNaN(y))).filter(x => x.length == 4).map(x => ({ minPnLPerc: x[0], maxPnLPerc: x[1], minDropPerc: x[2], sellPerc: x[3] })).filter(x => x.minPnLPerc >= 0 && (x.maxPnLPerc > x.minPnLPerc || x.maxPnLPerc === 0) && x.minDropPerc >= 0 && x.sellPerc >= 1 && x.sellPerc <= 100);
+    static AU_WHALE_ENTRY = (process.env.AU_WHALE_ENTRY || "").split("|").filter(x => x.length > 0).map(x => x.split(" ").filter(y => y.length > 0).map(y => parseFloat(y)).filter(y => !Number.isNaN(y))).filter(x => x.length == 4).map(x => ({ start: x[0], stop: x[1], minWhales: x[2], minSellPerc: x[3] })).filter(x => x.start >= 0 && x.stop >= x.start && x.minWhales >= 1 && x.minSellPerc >= 1);
+    static AU_WHALE_EXIT = (process.env.AU_WHALE_EXIT || "").split("|").filter(x => x.length > 0).map(x => x.split(" ").filter(y => y.length > 0).map(y => parseFloat(y)).filter(y => !Number.isNaN(y))).filter(x => x.length == 7).map(x => ({ start: x[0], stop: x[1], minWhales: x[2], minSellPerc: x[3], minPnL: x[4], maxPnL: x[5] || Infinity, sellPerc: x[6] })).filter(x => x.start >= 0 && x.stop >= x.start && x.minWhales >= 1 && x.minSellPerc >= 1 && x.maxPnL >= x.minPnL && x.sellPerc >= 1 && x.sellPerc <= 100);
     static AU_BUY_DESC_REQUIRED = (process.env.AU_BUY_DESC_REQUIRED || "").toLowerCase() == "true";
     static AU_AUTO_SELL = (process.env.AU_AUTO_SELL || "").toLowerCase() == "true";
     static AU_AUTO_BUY = (process.env.AU_AUTO_BUY || "").toLowerCase() == "true";
     static AU_AUTO_PEAKDROP = (process.env.AU_AUTO_PEAKDROP || "").toLowerCase() == "true";
+    static AU_AUTO_WHALE_ENTRY = (process.env.AU_AUTO_WHALE_ENTRY || "").toLowerCase() == "true";
+    static AU_AUTO_WHALE_EXIT = (process.env.AU_AUTO_WHALE_EXIT || "").toLowerCase() == "true";
 
     static IND_MIN_LENGTH = parseInt(process.env.IND_MIN_LENGTH || "10") || 10;
     static IND_MACD_FAST_PERIOD = parseInt(process.env.IND_MACD_FAST_PERIOD || "12") || 12;
@@ -96,6 +100,7 @@ class Site {
     static TG_SEND_START = process.env.TG_SEND_START == "true";
     static TG_SEND_STOP = process.env.TG_SEND_STOP == "true";
     static TG_SEND_AUDIT_FAILED = process.env.TG_SEND_AUDIT_FAILED == "true";
+    static TG_SEND_WHALE = process.env.TG_SEND_WHALE == "true";
     static TG_WH_SECRET_TOKEN = process.env.TG_WH_SECRET_TOKEN ?? "";
     static TG_MESSAGE_DURATION_MS = parseInt(process.env.TG_MESSAGE_DURATION_MS || "5000") || 5000;
     static TG_BOT_URL = process.env.TG_BOT_URL ?? "";
@@ -153,6 +158,9 @@ class Site {
     static AUTO_ACCEPT_TOKEN = (process.env.AUTO_ACCEPT_TOKEN || "").toLowerCase() == "true";
 
     static ZERO_THRESHOLD = parseFloat(process.env.ZERO_THRESHOLD || "0") || 0.1;
+
+    static WH_MAX_WHALES = parseInt(process.env.WH_MAX_WHALES || "0") || 10;
+    static WH_MAX_LOGS = parseInt(process.env.WH_MAX_LOGS || "0") || 30;
 }
 
 module.exports = Site;
