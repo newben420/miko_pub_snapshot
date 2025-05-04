@@ -239,7 +239,7 @@ class WhaleEngine {
                  */
                 let token = TokenEngine.getToken(mint);
                 if (token && WhaleEngine.#data[mint]) {
-                    if (token.amount_held > 0 && WhaleEngine.useExit && (!WhaleEngine.#exitExec[mint])) {
+                    if (token.amount_held > 0 && WhaleEngine.useExit && (!WhaleEngine.#exitExec[mint]) && token.source == "Kiko") {
                         WhaleEngine.#exitExec[mint] = true;
                         for (let i = 0; i < Site.AU_WHALE_EXIT.length; i++) {
                             if (token.executed_whale_exits.indexOf(i) >= 0) {

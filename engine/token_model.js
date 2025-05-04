@@ -318,6 +318,18 @@ class Token {
     bought_once;
 
     /**
+     * Register source
+     * @type {'Telegram'|'Kiko'|'Unspecified'|'Recovery'}
+     */
+    source;
+
+    /**
+     * Indicates if it was added in simulation
+     * @type {boolean}
+     */
+    added_in_simulation;
+
+    /**
      * Exit reasons
      * @type {Set<string>}
      */
@@ -334,12 +346,15 @@ class Token {
      * @param {string} name 
      * @param {string} symbol 
      * @param {string} mint
+     * @param {'Telegram'|'Kiko'|'Unspecified'|'Recovery'} source
      * @param {number} amount_held
      */
-    constructor(name, symbol, mint, description, amount_held = 0) {
+    constructor(name, symbol, mint, description, source, amount_held = 0) {
         this.name = name;
         this.symbol = symbol;
         this.mint = mint;
+        this.source = source;
+        this.added_in_simulation = Site.SIMULATION;
         this.description = description;
         this.current_price = 0;
         this.max_marketcap = 0;

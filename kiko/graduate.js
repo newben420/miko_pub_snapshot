@@ -122,7 +122,7 @@ class GraduateEngine {
                 GraduateEngine.graduated++;
                 if (GraduateEngine.acceptToken) {
                     if (!TokenEngine.getToken(mint)) {
-                        const registered = await TokenEngine.registerToken(mint);
+                        const registered = await TokenEngine.registerToken(mint, "Kiko");
                         if (registered) {
                             WhaleEngine.newToken(mint, raw_audit_data.top_holders);
                             const audit = human_audit_data || {};

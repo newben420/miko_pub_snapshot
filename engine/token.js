@@ -30,6 +30,8 @@ class TokenEngine {
      */
     static #tokens = {};
 
+    static getAllTokens = () => Object.keys(TokenEngine.#tokens).map(mint => TokenEngine.#tokens[mint]);
+
 
     static getTokensMint = () => {
         return Object.keys(TokenEngine.#tokens);
@@ -56,13 +58,13 @@ class TokenEngine {
 
     /**
      * Realized PnLs in simulation mode.
-     * @type {number[]}
+     * @type {any[]}
      */
     static realizedPnLSimulation = [];
 
     /**
      * Realized PnLs in live mode.
-     * @type {number[]}
+     * @type {any[]}
      */
     static realizedPnLLive = [];
 
@@ -142,14 +144,14 @@ class TokenEngine {
                     TelegramEngine.sendMessage(`❌ ${token.name} \\(${token.symbol}\\) has been removed after ${getTimeElapsed(token.last_updated, Date.now())} since it was last updated\n\nRegistered ⏱️ ${getTimeElapsed(token.reg_timestamp, Date.now())} ago${token.current_marketcap ? `\nCurrent MC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPeak MC 📈 ${Site.BASE} ${FFF(token.max_marketcap)} \\(USD ${FFF(token.max_marketcap * SolPrice.get())}\\)\nLeast MC 📈 ${Site.BASE} ${FFF(token.min_marketcap)} \\(USD ${FFF(token.min_marketcap * SolPrice.get())}\\)` : ''}${(token.pnl || token.max_pnl || token.min_pnl) ? `\nPnL 💰 ${Site.BASE} ${FFF(token.pnl_base)} \\(USD ${FFF(token.pnl_base * SolPrice.get())} | *${token.pnl.toFixed(2)}%*\\)\nMax PnL 💰 ${token.max_pnl.toFixed(2)}%\nMin PnL 💰 ${token.min_pnl.toFixed(2)}%\nEntry Reasons 🔵 ${Array.from(token.entry_reasons).map(r => `\`${r}\``).join(" | ")}\nExit Reasons 🟠 ${Array.from(token.exit_reasons).map(r => `\`${r}\``).join(" | ")}` : ``}\n\n\`${token.mint}\``, mid => {
                         if (TokenEngine.#tokens[mint]) {
                             if (TokenEngine.#tokens[mint].pnl_base) {
-                                if (Site.SIMULATION) {
+                                if (Site.SIMULATION && TokenEngine.#tokens[mint].added_in_simulation) {
                                     if (TokenEngine.realizedPnLSimulation.length > 0 ? (TokenEngine.realizedPnLSimulation[TokenEngine.realizedPnLSimulation.length - 1] != TokenEngine.#tokens[mint].pnl_base) : true) {
-                                        TokenEngine.realizedPnLSimulation.push(TokenEngine.#tokens[mint].pnl_base);
+                                        TokenEngine.realizedPnLSimulation.push({pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp});
                                     }
                                 }
-                                else {
+                                else if((!Site.SIMULATION) && (!TokenEngine.#tokens[mint].added_in_simulation)) {
                                     if (TokenEngine.realizedPnLLive.length > 0 ? (TokenEngine.realizedPnLLive[TokenEngine.realizedPnLLive.length - 1] != TokenEngine.#tokens[mint].pnl_base) : true) {
-                                        TokenEngine.realizedPnLLive.push(TokenEngine.#tokens[mint].pnl_base);
+                                        TokenEngine.realizedPnLLive.push({pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp});
                                     }
                                 }
                             }
@@ -204,31 +206,37 @@ class TokenEngine {
     /**
      * Register a token with the engine.
      * @param {string} mint 
+     * @param {'Telegram'|'Kiko'|'Unspecified'|'Recovery'} source
      * @returns {Promise<boolean>}
      */
-    static registerToken = (mint) => {
+    static registerToken = (mint, source) => {
         return new Promise(async (resolve, reject) => {
-            const metadata = await TokenEngine.getTokenInfo(mint);
-            if (metadata) {
-                const { name, symbol, description } = metadata;
-                TokenEngine.#startObservation(mint);
-                TokenEngine.#tokens[mint] = new Token(name, symbol, mint, description);
-                TokenEngine.#tokens[mint].remove_ref = TokenEngine.removeToken;
-                if ((Site.AU_BUY_DESC_REQUIRED ? description : true) && TokenEngine.autoBuy) {
-                    for (const autoBuy of Site.AU_BUY) {
-                        let o = new LimitOrder();
-                        o.type = "buy";
-                        o.marketcap = autoBuy.mc * -1;
-                        o.amount = autoBuy.buyAmt;
-                        o.min_time = autoBuy.minTime;
-                        o.max_time = autoBuy.maxTime;
-                        TokenEngine.#tokens[mint].pending_orders.push(o);
-                    }
-                }
-                resolve(true);
+            if (TokenEngine.#tokens[mint]) {
+                resolve(false);
             }
             else {
-                resolve(false);
+                const metadata = await TokenEngine.getTokenInfo(mint);
+                if (metadata) {
+                    const { name, symbol, description } = metadata;
+                    TokenEngine.#startObservation(mint);
+                    TokenEngine.#tokens[mint] = new Token(name, symbol, mint, description, source);
+                    TokenEngine.#tokens[mint].remove_ref = TokenEngine.removeToken;
+                    if ((Site.AU_BUY_DESC_REQUIRED ? description : true) && TokenEngine.autoBuy && TokenEngine.#tokens[mint].source == "Kiko") {
+                        for (const autoBuy of Site.AU_BUY) {
+                            let o = new LimitOrder();
+                            o.type = "buy";
+                            o.marketcap = autoBuy.mc * -1;
+                            o.amount = autoBuy.buyAmt;
+                            o.min_time = autoBuy.minTime;
+                            o.max_time = autoBuy.maxTime;
+                            TokenEngine.#tokens[mint].pending_orders.push(o);
+                        }
+                    }
+                    resolve(true);
+                }
+                else {
+                    resolve(false);
+                }
             }
         })
     }
@@ -449,7 +457,7 @@ class TokenEngine {
                         const bought = message.tokenAmount;
                         TelegramEngine.sendMessage(`✅ *BUY*\n\nSwapped ${Site.BASE} ${FFF(amt)} \\(USD ${FFF(amt * SolPrice.get())}\\) to ${token.symbol} ${FFF(bought)}\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
                         if (!TokenEngine.#tokens[mint].bought_once) {
-                            if (TokenEngine.autoSell) {
+                            if (TokenEngine.autoSell && TokenEngine.#tokens[mint].source == "Kiko") {
                                 let buyMC = Site.BASE_DENOMINATED ? TokenEngine.#tokens[mint].current_marketcap : (TokenEngine.#tokens[mint].current_marketcap * SolPrice.get());
                                 for (const autoSell of Site.AU_SELL) {
                                     let sellMC = ((autoSell.pnl * buyMC) / 100) + buyMC;
@@ -485,7 +493,7 @@ class TokenEngine {
                 }
             }
 
-            if (TokenEngine.#tokens[mint].amount_held >= 0 && TokenEngine.autoPD && (Date.now() - (TokenEngine.#pdLastExec[mint] || 0)) >= 1000) {
+            if (TokenEngine.#tokens[mint].amount_held >= 0 && TokenEngine.autoPD && (Date.now() - (TokenEngine.#pdLastExec[mint] || 0)) >= 1000 && TokenEngine.#tokens[mint].source == "Kiko") {
                 for (let i = 0; i < Site.AU_PEAKDROP.length; i++) {
                     if (TokenEngine.#tokens[mint].executed_peak_drops.indexOf(i) >= 0) {
                         continue;
@@ -644,7 +652,7 @@ class TokenEngine {
                                 // DO NOTHING
                             }
                             else {
-                                const r = await TokenEngine.registerToken(mint);
+                                const r = await TokenEngine.registerToken(mint, "Recovery");
                                 if (TokenEngine.#tokens[mint]) {
                                     TokenEngine.#tokens[mint].amount_held = ((tokenAccounts.filter(x => x.mint == mint)[0] || {}).balance || 0);
                                 }
@@ -717,7 +725,7 @@ class TokenEngine {
                         token.amount_held += amtBought;
                         token.total_bought_base += amt;
                         if (!TokenEngine.#tokens[mint].bought_once) {
-                            if (TokenEngine.autoSell) {
+                            if (TokenEngine.autoSell && token.source == "Kiko") {
                                 let buyMC = Site.BASE_DENOMINATED ? TokenEngine.#tokens[mint].current_marketcap : (TokenEngine.#tokens[mint].current_marketcap * SolPrice.get());
                                 for (const autoSell of Site.AU_SELL) {
                                     let sellMC = ((autoSell.pnl * buyMC) / 100) + buyMC;
@@ -837,7 +845,7 @@ class TokenEngine {
             WhaleEngine = require("./whale").WhaleEngine;
         }
         return new Promise(async (resolve, reject) => {
-            if((action == "buy" && WhaleEngine.enter(mint)) || (action == "sell")){
+            if ((action == "buy" && WhaleEngine.enter(mint)) || (action == "sell")) {
                 const body = {
                     action,
                     publicKey: Site.DE_LOCAL_PUB_KEY,
@@ -913,7 +921,7 @@ class TokenEngine {
                     resolve(new Res(false, "SERVER"));
                 }
             }
-            else{
+            else {
                 resolve(new Res(false, "Whale Corrected Buy"));
             }
         });

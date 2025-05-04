@@ -22,6 +22,7 @@ const LaunchEngine = require('./kiko/launch');
 const ObserverEngine = require('./kiko/observer');
 const { obv } = require('technicalindicators');
 const { WhaleEngine } = require('./engine/whale');
+const { computeArithmeticDirectionMod } = require('./lib/mod_direction');
 
 
 app.disable("x-powered-by");
@@ -212,5 +213,3 @@ init(succ => {
         killer();
     }
 });
-
-// console.log(Site.AU_WHALE_EXIT);

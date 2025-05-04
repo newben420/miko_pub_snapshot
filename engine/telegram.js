@@ -13,6 +13,7 @@ const getDateTime = require('../lib/get_date_time');
 const ObserverEngine = require('../kiko/observer');
 const GraduateEngine = require('../kiko/graduate');
 const { WhaleEngine } = require('./whale');
+const { computeArithmeticDirectionMod } = require('../lib/mod_direction');
 
 let SignalManager = null;
 
@@ -134,9 +135,8 @@ class TelegramEngine {
                 inn.push([]);
                 let kb = inn[inn.length - 1];
                 m += `${index}. *${token.name}*\n`;
-                m += `‼️ ${token.rec_buy ? "B" : "DNB"} ‼️ ${token.rec_sell ? "S" : "DNS"}\n`;
-                m += `R ⏱️ *${getTimeElapsed(token.reg_timestamp, Date.now())}*\n`;
-                m += `LU ⏱️ *${getTimeElapsed(token.last_updated, Date.now())}*\n`;
+                m += `ℹ️ ${token.source} ‼️ ${token.rec_buy ? "B" : "DNB"} ‼️ ${token.rec_sell ? "S" : "DNS"}\n`;
+                m += `⏱️ ${getTimeElapsed(token.reg_timestamp, Date.now())} ⏳ ${getTimeElapsed(token.last_updated, Date.now())}\n`;
                 m += `P 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
                 m += `MM P 💰 ${Site.BASE} ${FFF(token.least_price)} => ${FFF(token.peak_price)} \\(${formatNumber((((token.peak_price - token.least_price) / token.least_price * 100) || 0).toFixed(2))}%\\)\n`;
                 m += `MC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\n`;
@@ -165,7 +165,7 @@ class TelegramEngine {
                         m += `🔸 ${getTimeElapsed(0, (0 + interv))}: ${(diff || 0).toFixed(2)}%\n`;
                     }
                 }
-                m += `Mint 📍 \`${token.mint}\`\n`;
+                // m += `Mint 📍 \`${token.mint}\`\n`;
                 if (token.current_price > 0) {
                     kb.push({
                         text: `🟢 ${index}`,
@@ -337,23 +337,11 @@ class TelegramEngine {
             TelegramEngine.#bot.setMyCommands([
                 {
                     command: "/tokens",
-                    description: "Manage tokens"
+                    description: "Tokens"
                 },
                 {
                     command: "/wallet",
-                    description: "Show wallet balance and address"
-                },
-                {
-                    command: "/recover",
-                    description: "Close empty token accounts and register non-empty token accounts"
-                },
-                {
-                    command: "/blacklist",
-                    description: "Blacklist"
-                },
-                {
-                    command: "/auto",
-                    description: "Automation"
+                    description: "Wallet"
                 },
                 {
                     command: "/observe",
@@ -362,7 +350,20 @@ class TelegramEngine {
                 {
                     command: "/start",
                     description: "👋"
-                }
+                },
+                {
+                    command: "/auto",
+                    description: "Automation"
+                },
+                {
+                    command: "/recover",
+                    description: "Recovery"
+                },
+                {
+                    command: "/blacklist",
+                    description: "Blacklist"
+                },
+
             ]);
             if (!Site.TG_POLLING) {
                 TelegramEngine.#bot.setWebHook(`${Site.URL}/webhook`, {
@@ -374,9 +375,19 @@ class TelegramEngine {
                 const pid = msg.chat.id || msg.from.id;
                 if (pid && pid == Site.TG_CHAT_ID) {
                     if (/^\/start$/.test(content)) {
-                        let rPnL = (Site.SIMULATION ? TokenEngine.realizedPnLSimulation : TokenEngine.realizedPnLLive).reduce((a, b) => a +b, 0);
-                        let nPnL = rPnL - (Site.SIMULATION ? 0 : (TokenEngine.successfulTx * 0.000005))
-                        TelegramEngine.sendMessage(`*${Site.TITLE}* says hi 👋\n\n*Realised PnL* 💰 ${Site.BASE} ${FFF(rPnL)} \\(USD ${FFF(rPnL * SolPrice.get())}\\)\n*Net PnL* 💰 ${Site.BASE} ${FFF(nPnL)} \\(USD ${FFF(nPnL * SolPrice.get())}\\)`);
+                        let arr = (Site.SIMULATION ? TokenEngine.realizedPnLSimulation : TokenEngine.realizedPnLLive);
+                        arr = arr.concat(TokenEngine.getAllTokens().filter(x => Site.SIMULATION === x.added_in_simulation).map(x => ({ pnl: x.pnl_base, ts: x.reg_timestamp })));
+                        arr.sort((a, b) => a.ts - b.ts);
+                        arr = arr.map(x => x.pnl);
+                        let lPnL = arr.reduce((a, b) => a + b, 0);
+                        let nPnL = lPnL - (Site.SIMULATION ? 0 : (TokenEngine.successfulTx * 0.000005));
+                        let rPnL = (Site.SIMULATION ? TokenEngine.realizedPnLSimulation : TokenEngine.realizedPnLLive).map(x => x.pnl).reduce((a, b) => a + b, 0);
+                        let m = `*${Site.TITLE}* says hi 👋`;
+                        m += `\n\n*PnL* 💰 ${Site.BASE} ${FFF(lPnL)} \\(USD ${FFF(lPnL * SolPrice.get())}\\)\n`;
+                        m += `*Net PnL* 💰 ${Site.BASE} ${FFF(nPnL)} \\(USD ${FFF(nPnL * SolPrice.get())}\\)\n`;
+                        m += `*Realized PnL* 💰 ${Site.BASE} ${FFF(rPnL)} \\(USD ${FFF(rPnL * SolPrice.get())}\\)\n`;
+                        m += `*Market Condition* ${computeArithmeticDirectionMod(arr, 5)}`;
+                        TelegramEngine.sendMessage(m);
                     }
                     else if (/^\/observe$/.test(content)) {
                         const { message, inline } = TelegramEngine.#getObserveContent();
@@ -520,7 +531,7 @@ class TelegramEngine {
                             TelegramEngine.sendMessage(`❌ Token already being monitored`);
                         }
                         else {
-                            const registered = await TokenEngine.registerToken(content);
+                            const registered = await TokenEngine.registerToken(content, "Telegram");
                             if (registered) {
                                 const token = TokenEngine.getToken(content);
                                 TelegramEngine.sendMessage(`✅ ${token.name} \\(${token.symbol}\\) is now being monitored${token.description ? `\n\n\`\`\`\n${token.description}\`\`\`` : ''}`);
