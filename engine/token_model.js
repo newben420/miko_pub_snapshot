@@ -336,6 +336,24 @@ class Token {
     exit_reasons;
 
     /**
+     * Indicates if the token's last buy was a CSBuy
+     * @type {boolean};
+     */
+    CSB;
+
+    /**
+     * Temporary Stop Loss Price placeholder
+     * @type {number}
+     */
+    SLP;
+
+    /**
+     * Temporary Mark Price placeholder
+     * @type {number}
+     */
+    MP;
+
+    /**
      * Entry reasons
      * @type {Set<string>}
      */
@@ -385,6 +403,9 @@ class Token {
         this.pnl = 0;
         this.entry_reasons = new Set();
         this.exit_reasons = new Set();
+        this.CSB = false;
+        this.SLP = 0;
+        this.MP = 0;
         this.max_pnl = 0;
         this.min_pnl = 0;
         this.timeout_ref = setInterval(() => {

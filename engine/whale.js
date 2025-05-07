@@ -166,11 +166,7 @@ class WhaleEngine {
             const index = WhaleEngine.#data[mint].findIndex(x => x.trader == traderPublicKey);
             let actionTaken = false;
             const mc = parseFloat(marketCapSol) || WhaleEngine.#MC[mint] || 0;
-            const mcChange = WhaleEngine.#MC[mint] ? ` MC ${((mc - WhaleEngine.#MC[mint]) / WhaleEngine.#MC[mint] * 100).toFixed(2)}%.` : "";
-            const acts = (WhaleEngine.#unloggedSelfActions[mint] || (new Set())).size ? ` SA ${Array.from(WhaleEngine.#unloggedSelfActions[mint]).join(" ")}.` : "";
-            if (WhaleEngine.#unloggedSelfActions[mint]) {
-                WhaleEngine.#unloggedSelfActions[mint].clear();
-            }
+
             if (index >= 0) {
                 const whale = WhaleEngine.#data[mint][index];
                 if (whale.trader == traderPublicKey) {
@@ -181,6 +177,11 @@ class WhaleEngine {
                     }
                     if (percChange > 0) {
                         // action is tangible
+                        const mcChange = WhaleEngine.#MC[mint] ? ` MC ${((mc - WhaleEngine.#MC[mint]) / WhaleEngine.#MC[mint] * 100).toFixed(2)}%.` : "";
+                        const acts = (WhaleEngine.#unloggedSelfActions[mint] || (new Set())).size > 0 ? ` SA ${Array.from(WhaleEngine.#unloggedSelfActions[mint]).join(" ")}.` : "";
+                        if (WhaleEngine.#unloggedSelfActions[mint]) {
+                            WhaleEngine.#unloggedSelfActions[mint].clear();
+                        }
                         /**
                          * @type {number}
                          */
@@ -217,6 +218,11 @@ class WhaleEngine {
                         n--;
                     }
                     if (ind >= 0) {
+                        const mcChange = WhaleEngine.#MC[mint] ? ` MC ${((mc - WhaleEngine.#MC[mint]) / WhaleEngine.#MC[mint] * 100).toFixed(2)}%.` : "";
+                        const acts = (WhaleEngine.#unloggedSelfActions[mint] || (new Set())).size > 0 ? ` SA ${Array.from(WhaleEngine.#unloggedSelfActions[mint]).join(" ")}.` : "";
+                        if (WhaleEngine.#unloggedSelfActions[mint]) {
+                            WhaleEngine.#unloggedSelfActions[mint].clear();
+                        }
                         let replacedWhale = (WhaleEngine.#data[mint].length >= Site.WH_MAX_WHALES) ? WhaleEngine.#data[mint][ind] : null;
                         if (replacedWhale) {
                             replacedWhale = structuredClone(replacedWhale);
@@ -239,7 +245,7 @@ class WhaleEngine {
                  */
                 let token = TokenEngine.getToken(mint);
                 if (token && WhaleEngine.#data[mint]) {
-                    if (token.amount_held > 0 && WhaleEngine.useExit && (!WhaleEngine.#exitExec[mint]) && token.source == "Kiko") {
+                    if (token.amount_held > 0 && WhaleEngine.useExit && (!WhaleEngine.#exitExec[mint]) && ((token.source == "Kiko") || ((token.source == "Telegram") && (token.CSB) && (token.SLP)))) {
                         WhaleEngine.#exitExec[mint] = true;
                         for (let i = 0; i < Site.AU_WHALE_EXIT.length; i++) {
                             if (token.executed_whale_exits.indexOf(i) >= 0) {
@@ -253,7 +259,7 @@ class WhaleEngine {
                             if (c) {
                                 // condition fulfilled for selling
                                 const allocation = token.amount_held + 0;
-                                const done = await TokenEngine.sell(mint, exit.sellPerc, `Whale ${(i + 1)}`, Site.TRADE_MAX_RETRIES, [0, 0]);
+                                const done = await TokenEngine.sell(mint, exit.sellPerc, `Whale ${(i + 1)}`, Site.TRADE_MAX_RETRIES_EXIT, [0, 0]);
                                 if (done) {
                                     if (!TelegramEngine) {
                                         TelegramEngine = require("./telegram");
@@ -262,7 +268,7 @@ class WhaleEngine {
                                         TelegramEngine.sendMessage(`✅ *SELL*\n\nWhale Exit swapped ${token.symbol} ${FFF(((exit.sellPerc / 100) * allocation) || 0)} \\(${exit.sellPerc}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
                                     }
                                     else {
-                                        TelegramEngine.sendMessage(`✅ *SELL*\n\nWhale Exit executed on ${mint.symbol}\n\n🪧 \`${done}\``);
+                                        TelegramEngine.sendMessage(`✅ *SELL*\n\nWhale Exit executed on ${token.symbol}\n\n🪧 \`${done}\``);
                                     }
                                     token.executed_whale_exits.push(i);
                                     break;

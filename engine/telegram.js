@@ -14,6 +14,9 @@ const ObserverEngine = require('../kiko/observer');
 const GraduateEngine = require('../kiko/graduate');
 const { WhaleEngine } = require('./whale');
 const { computeArithmeticDirectionMod } = require('../lib/mod_direction');
+const CSBuy = require('./cs_buy');
+
+process.env.NTBA_FIX_350 = true;
 
 let SignalManager = null;
 
@@ -257,7 +260,8 @@ class TelegramEngine {
 
         let message = `🤖 *Automation Interface*\n\n⏱️ ${getDateTime()}\n\n`;
 
-        message += `${Site.SIMULATION ? `🟢` : `🔴`} Simulation\n`;
+        message += `${Site.SIMULATION ? `🟢` : `🔴`} Sim\n`;
+        message += `${CSBuy.activated ? `🟢` : `🔴`} CSBuy\n`;
         message += `${TokenEngine.autoBuy ? `🟢` : `🔴`} Auto Buy\n`;
         message += `${TokenEngine.autoSell ? `🟢` : `🔴`} Auto Sell\n`;
         message += `${TokenEngine.autoPD ? `🟢` : `🔴`} Peak Drop\n`;
@@ -273,8 +277,12 @@ class TelegramEngine {
         let inline = [
             [
                 {
-                    text: `${Site.SIMULATION ? `🔴` : `🟢`} Simulation`,
+                    text: `${Site.SIMULATION ? `🔴` : `🟢`} Sim`,
                     callback_data: `auto_sm_${Site.SIMULATION ? `false` : `true`}`,
+                },
+                {
+                    text: `${CSBuy.activated ? `🔴` : `🟢`} CSBuy`,
+                    callback_data: `auto_csb_${CSBuy.activated ? `false` : `true`}`,
                 },
             ],
             [
@@ -364,7 +372,12 @@ class TelegramEngine {
                     description: "Blacklist"
                 },
 
-            ]);
+            ].concat(Site.IND_ML_COLLECT_DATA ? [
+                {
+                    command: "/collect",
+                    description: "Collect"
+                },
+            ] : []));
             if (!Site.TG_POLLING) {
                 TelegramEngine.#bot.setWebHook(`${Site.URL}/webhook`, {
                     secret_token: Site.TG_WH_SECRET_TOKEN,
@@ -402,6 +415,13 @@ class TelegramEngine {
                                     }
                                 });
                             }
+                        } catch (error) {
+                            Log.dev(error);
+                        }
+                    }
+                    else if (/^\/collect$/.test(content)) {
+                        try {
+                            require("./candlestick").sendCollected();
                         } catch (error) {
                             Log.dev(error);
                         }
@@ -710,6 +730,9 @@ class TelegramEngine {
                             }
                             else if (variable == "wen") {
                                 WhaleEngine.useEntry = newValue;
+                            }
+                            else if (variable == "csb") {
+                                CSBuy.activated = newValue;
                             }
                             else if (variable == "wex") {
                                 WhaleEngine.useExit = newValue;
@@ -1121,6 +1144,55 @@ class TelegramEngine {
 
     static sendWarning = (warning) => {
         TelegramEngine.sendMessage(`🚨 *Warning*\n\n${warning}`);
+    }
+
+    /**
+     * Sends string as a text file.
+     * @param {string} content 
+     * @param {string} caption 
+     * @param {string} filename 
+     * @returns {Promise<boolean>}
+     */
+    static sendStringAsTxtFile = (content, caption, filename) => {
+        return new Promise((resolve, reject) => {
+            TelegramEngine.#bot.sendDocument(Site.TG_CHAT_ID, Buffer.from(content, "utf8"), {
+                parse_mode: "MarkdownV2",
+                caption: TelegramEngine.sanitizeMessage(caption),
+            }, {
+                contentType: "text/plain",
+                filename: filename,
+            }).then(r => {
+                resolve(true);
+            }).catch(err => {
+                Log.dev(err);
+                resolve(false);
+            });
+        })
+
+    }
+
+    /**
+     * Sends string as a JSON file.
+     * @param {string} content 
+     * @param {string} caption 
+     * @param {string} filename 
+     * @returns {Promise<boolean>}
+     */
+    static sendStringAsJSONFile = (content, caption, filename) => {
+        return new Promise((resolve, reject) => {
+            TelegramEngine.#bot.sendDocument(Site.TG_CHAT_ID, Buffer.from(content, "utf8"), {
+                parse_mode: "MarkdownV2",
+                caption: TelegramEngine.sanitizeMessage(caption),
+            }, {
+                contentType: "application/json",
+                filename: filename,
+            }).then(r => {
+                resolve(true);
+            }).catch(err => {
+                Log.dev(err);
+                resolve(false);
+            });
+        })
     }
 
     /**

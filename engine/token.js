@@ -10,6 +10,7 @@ const SolPrice = require("./sol_price");
 const getTimeElapsed = require("../lib/get_time_elapsed");
 let TelegramEngine = null;
 let WhaleEngine = null;
+let CandlestickEngine = null;
 
 const METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
@@ -136,6 +137,9 @@ class TokenEngine {
                     clearInterval(token.timeout_ref);
                 }
                 TokenEngine.#stopObservation(mint);
+                if (!CandlestickEngine) {
+                    CandlestickEngine = require("./candlestick");
+                }
                 try {
                     const TelegramEngine = require("./telegram");
                     if (!WhaleEngine) {
@@ -146,12 +150,12 @@ class TokenEngine {
                             if (TokenEngine.#tokens[mint].pnl_base) {
                                 if (Site.SIMULATION && TokenEngine.#tokens[mint].added_in_simulation) {
                                     if (TokenEngine.realizedPnLSimulation.length > 0 ? (TokenEngine.realizedPnLSimulation[TokenEngine.realizedPnLSimulation.length - 1] != TokenEngine.#tokens[mint].pnl_base) : true) {
-                                        TokenEngine.realizedPnLSimulation.push({pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp});
+                                        TokenEngine.realizedPnLSimulation.push({ pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp });
                                     }
                                 }
-                                else if((!Site.SIMULATION) && (!TokenEngine.#tokens[mint].added_in_simulation)) {
+                                else if ((!Site.SIMULATION) && (!TokenEngine.#tokens[mint].added_in_simulation)) {
                                     if (TokenEngine.realizedPnLLive.length > 0 ? (TokenEngine.realizedPnLLive[TokenEngine.realizedPnLLive.length - 1] != TokenEngine.#tokens[mint].pnl_base) : true) {
-                                        TokenEngine.realizedPnLLive.push({pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp});
+                                        TokenEngine.realizedPnLLive.push({ pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp });
                                     }
                                 }
                             }
@@ -163,12 +167,14 @@ class TokenEngine {
                         delete TokenEngine.#tokens[mint];
                         delete TokenEngine.#pdLastExec[mint];
                         delete TokenEngine.#isBeingRemoved[mint];
+                        CandlestickEngine.removeToken(mint);
                     });
                 } catch (error) {
                     Log.dev(error);
                     delete TokenEngine.#tokens[mint];
                     delete TokenEngine.#pdLastExec[mint];
                     delete TokenEngine.#isBeingRemoved[mint];
+                    CandlestickEngine.removeToken(mint);
                 }
                 finally {
                     callback();
@@ -377,7 +383,7 @@ class TokenEngine {
                                 // less than or equal to
                                 if (mc <= Math.abs(order.marketcap) && sufficient && (order.trailing ? ((TokenEngine.#tokens[mint].pnl >= order.min_sell_pnl) && (TokenEngine.#tokens[mint].pnl <= order.max_sell_pnl)) : true)) {
                                     // condition for this order has been fulfilled
-                                    const done = order.type == "buy" ? (await TokenEngine.buy(mint, order.amount, `Limit MC < ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES, [0, order.marketcap])) : (await TokenEngine.sell(mint, order.amount, `${order.trailing ? `TSL MC` : `Limit MC`} < ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES, [0, order.marketcap]));
+                                    const done = order.type == "buy" ? (await TokenEngine.buy(mint, order.amount, `Limit MC < ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES_ENTRY, [0, order.marketcap])) : (await TokenEngine.sell(mint, order.amount, `${order.trailing ? `TSL MC` : `Limit MC`} < ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES_EXIT, [0, order.marketcap]));
                                     if (done) {
                                         if (!TelegramEngine) {
                                             TelegramEngine = require("./telegram");
@@ -403,7 +409,7 @@ class TokenEngine {
                                 // greater than or equal to
                                 if (mc >= Math.abs(order.marketcap) && sufficient) {
                                     // condition for this order has been fulfilled
-                                    const done = order.type == "buy" ? (await TokenEngine.buy(mint, order.amount, `Limit MC > ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES, [order.marketcap, 0])) : (await TokenEngine.sell(mint, order.amount, `${order.trailing ? `TSL MC` : `Limit MC`} > ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES, [order.marketcap, 0]));
+                                    const done = order.type == "buy" ? (await TokenEngine.buy(mint, order.amount, `Limit MC > ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES_ENTRY, [order.marketcap, 0])) : (await TokenEngine.sell(mint, order.amount, `${order.trailing ? `TSL MC` : `Limit MC`} > ${Site.BASE_DENOMINATED ? Site.BASE : "USD"} ${FFF(Math.abs(order.marketcap))}`, Site.TRADE_MAX_RETRIES_EXIT, [order.marketcap, 0]));
                                     if (done) {
                                         if (!TelegramEngine) {
                                             TelegramEngine = require("./telegram");
@@ -455,6 +461,7 @@ class TokenEngine {
                         TokenEngine.#tokens[mint].total_bought_base += message.solAmount;
                         const amt = message.solAmount;
                         const bought = message.tokenAmount;
+                        Log.flow(`Buy > ${token.symbol} > ${Site.BASE}% > ${FFF(amt)} > Confirmed.`, 3);
                         TelegramEngine.sendMessage(`✅ *BUY*\n\nSwapped ${Site.BASE} ${FFF(amt)} \\(USD ${FFF(amt * SolPrice.get())}\\) to ${token.symbol} ${FFF(bought)}\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
                         if (!TokenEngine.#tokens[mint].bought_once) {
                             if (TokenEngine.autoSell && TokenEngine.#tokens[mint].source == "Kiko") {
@@ -474,6 +481,58 @@ class TokenEngine {
                                     TokenEngine.#tokens[mint].pending_orders.push(o);
                                 }
                             }
+                            else if (token.source == "Telegram" && token.CSB && token.SLP) {
+                                // This token was just auto bought using CSB
+                                let buyMC = Site.BASE_DENOMINATED ? TokenEngine.#tokens[mint].current_marketcap : (TokenEngine.#tokens[mint].current_marketcap * SolPrice.get());
+                                // reset token
+                                token.pending_orders = [];
+                                token.executed_peak_drops = [];
+                                token.executed_whale_exits = [];
+                                if (Site.SIMULATION && token.added_in_simulation && (token.pnl_base)) {
+                                    TokenEngine.realizedPnLSimulation.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                }
+                                else if ((!Site.SIMULATION) && (!token.added_in_simulation)) {
+                                    TokenEngine.realizedPnLLive.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                }
+                                token.max_pnl = 0;
+                                token.min_pnl = 0;
+                                token.pnl_base = 0;
+                                token.pnl = 0;
+                                // Add SL if configured
+                                if (Site.CSBUY_PSAR_SL) {
+                                    let perx = Math.abs((((token.SLP - token.MP) / token.MP) * 100) || 0);
+                                    let min = Site.CSBUY_ALLOWED_SL_PERC_RANGE[0] || 0;
+                                    let max = Site.CSBUY_ALLOWED_SL_PERC_RANGE[1] || Infinity;
+                                    if (perx >= min && perx <= max) {
+                                        const SLPnL = ((token.SLP - token.current_price) / token.current_price) * 100;
+                                        if (SLPnL) {
+                                            let SLMC = ((SLPnL * buyMC) / 100) + buyMC;
+                                            let o = new LimitOrder();
+                                            o.amount = Site.CSBUY_PSAR_SL;
+                                            o.type = "sell";
+                                            o.marketcap = SLMC * -1;
+                                            token.pending_orders.push(o);
+                                        }
+                                    }
+                                }
+                                // Add all remaining AUTO SELL ORDERS
+                                if (TokenEngine.autoSell) {
+                                    for (const autoSell of Site.CSBUY_SELL) {
+                                        let sellMC = ((autoSell.pnl * buyMC) / 100) + buyMC;
+                                        let o = new LimitOrder();
+                                        o.amount = autoSell.perc;
+                                        o.type = "sell";
+                                        o.marketcap = sellMC * (autoSell.pnl > 0 ? 1 : -1);
+                                        if (autoSell.trailing) {
+                                            o.perc = autoSell.pnl;
+                                            o.min_sell_pnl = autoSell.minPnL;
+                                            o.max_sell_pnl = autoSell.maxPnL;
+                                            o.trailing = true;
+                                        }
+                                        token.pending_orders.push(o);
+                                    }
+                                }
+                            }
                             TokenEngine.#tokens[mint].bought_once = true;
                         }
                     }
@@ -488,12 +547,21 @@ class TokenEngine {
                             TokenEngine.#tokens[mint].total_sold_base += message.solAmount;
                         }
                         const sold = message.solAmount;
+                        if (perc > 90 && token.CSB && token.SLP) {
+                            token.CSB = false;
+                            token.SLP = 0;
+                            token.bought_once = false;
+                            token.pending_orders = [];
+                            token.executed_peak_drops = [];
+                            token.executed_whale_exits = [];
+                        }
+                        Log.flow(`Sell > ${token.symbol} > ${perc}% > PnL ${FFF(token.pnl)}% > Confirmed.`, 3);
                         TelegramEngine.sendMessage(`✅ *SELL*\n\nSwapped ${token.symbol} ${FFF(message.tokenAmount)} \\(${perc}%\\) to ${Site.BASE} ${FFF(sold)} \\(USD ${FFF(sold * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
                     }
                 }
             }
 
-            if (TokenEngine.#tokens[mint].amount_held >= 0 && TokenEngine.autoPD && (Date.now() - (TokenEngine.#pdLastExec[mint] || 0)) >= 1000 && TokenEngine.#tokens[mint].source == "Kiko") {
+            if (TokenEngine.#tokens[mint].amount_held >= 0 && TokenEngine.autoPD && (Date.now() - (TokenEngine.#pdLastExec[mint] || 0)) >= 1000 && ((TokenEngine.#tokens[mint].source == "Kiko") || ((TokenEngine.#tokens[mint].source == "Telegram") && (TokenEngine.#tokens[mint].CSB && TokenEngine.#tokens[mint].SLP)))) {
                 for (let i = 0; i < Site.AU_PEAKDROP.length; i++) {
                     if (TokenEngine.#tokens[mint].executed_peak_drops.indexOf(i) >= 0) {
                         continue;
@@ -506,7 +574,7 @@ class TokenEngine {
                     const reached = pnl >= pd.minPnLPerc && (pd.maxPnLPerc ? (pnl <= pd.maxPnLPerc) : true) && drop >= pd.minDropPerc;
                     if (reached) {
                         TokenEngine.#pdLastExec[mint] = Date.now();
-                        const done = await TokenEngine.sell(mint, pd.sellPerc, `Peak Drop ${drop.toFixed(2)}%`, Site.TRADE_MAX_RETRIES, [0, 0]);
+                        const done = await TokenEngine.sell(mint, pd.sellPerc, `Peak Drop ${drop.toFixed(2)}%`, Site.TRADE_MAX_RETRIES_EXIT, [0, 0]);
                         if (done) {
                             if (!TelegramEngine) {
                                 TelegramEngine = require("./telegram");
@@ -716,53 +784,116 @@ class TokenEngine {
         return new Promise(async (resolve, reject) => {
             const token = TokenEngine.getToken(mint);
             if (token) {
-                if (!WhaleEngine) {
-                    WhaleEngine = require("./whale").WhaleEngine;
-                }
-                if (Site.SIMULATION) {
-                    if (token.current_price && WhaleEngine.enter(mint)) {
-                        const amtBought = amt / token.current_price;
-                        token.amount_held += amtBought;
-                        token.total_bought_base += amt;
-                        if (!TokenEngine.#tokens[mint].bought_once) {
-                            if (TokenEngine.autoSell && token.source == "Kiko") {
-                                let buyMC = Site.BASE_DENOMINATED ? TokenEngine.#tokens[mint].current_marketcap : (TokenEngine.#tokens[mint].current_marketcap * SolPrice.get());
-                                for (const autoSell of Site.AU_SELL) {
-                                    let sellMC = ((autoSell.pnl * buyMC) / 100) + buyMC;
-                                    let o = new LimitOrder();
-                                    o.amount = autoSell.perc;
-                                    o.type = "sell";
-                                    o.marketcap = sellMC * (autoSell.pnl > 0 ? 1 : -1);
-                                    if (autoSell.trailing) {
-                                        o.perc = autoSell.pnl;
-                                        o.min_sell_pnl = autoSell.minPnL;
-                                        o.max_sell_pnl = autoSell.maxPnL;
-                                        o.trailing = true;
+                Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt}.`, 3);
+                const availSlot = Object.keys(TokenEngine.#tokens).map(mint => TokenEngine.#tokens[mint]).filter(token => token.amount_held > 0 && token.mint != mint).length < Site.TOKEN_MAX_BUYS;
+                if (availSlot) {
+                    if (!WhaleEngine) {
+                        WhaleEngine = require("./whale").WhaleEngine;
+                    }
+                    if (Site.SIMULATION) {
+                        if (token.current_price && WhaleEngine.enter(mint)) {
+                            const amtBought = amt / token.current_price;
+                            token.amount_held += amtBought;
+                            token.total_bought_base += amt;
+                            if (!TokenEngine.#tokens[mint].bought_once) {
+                                if (TokenEngine.autoSell && token.source == "Kiko") {
+                                    let buyMC = Site.BASE_DENOMINATED ? TokenEngine.#tokens[mint].current_marketcap : (TokenEngine.#tokens[mint].current_marketcap * SolPrice.get());
+                                    for (const autoSell of Site.AU_SELL) {
+                                        let sellMC = ((autoSell.pnl * buyMC) / 100) + buyMC;
+                                        let o = new LimitOrder();
+                                        o.amount = autoSell.perc;
+                                        o.type = "sell";
+                                        o.marketcap = sellMC * (autoSell.pnl > 0 ? 1 : -1);
+                                        if (autoSell.trailing) {
+                                            o.perc = autoSell.pnl;
+                                            o.min_sell_pnl = autoSell.minPnL;
+                                            o.max_sell_pnl = autoSell.maxPnL;
+                                            o.trailing = true;
+                                        }
+                                        TokenEngine.#tokens[mint].pending_orders.push(o);
                                     }
-                                    TokenEngine.#tokens[mint].pending_orders.push(o);
                                 }
+                                else if (token.source == "Telegram" && token.CSB && token.SLP) {
+                                    // This token was just auto bought using CSB
+                                    let buyMC = Site.BASE_DENOMINATED ? TokenEngine.#tokens[mint].current_marketcap : (TokenEngine.#tokens[mint].current_marketcap * SolPrice.get());
+                                    // reset token
+                                    token.pending_orders = [];
+                                    token.executed_peak_drops = [];
+                                    token.executed_whale_exits = [];
+                                    if (Site.SIMULATION && token.added_in_simulation && (token.pnl_base)) {
+                                        TokenEngine.realizedPnLSimulation.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                    }
+                                    else if ((!Site.SIMULATION) && (!token.added_in_simulation)) {
+                                        TokenEngine.realizedPnLLive.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                    }
+                                    token.max_pnl = 0;
+                                    token.min_pnl = 0;
+                                    token.pnl_base = 0;
+                                    token.pnl = 0;
+                                    // Add SL if configured
+                                    if (Site.CSBUY_PSAR_SL) {
+                                        let perx = Math.abs((((token.SLP - token.MP) / token.MP) * 100) || 0);
+                                        let min = Site.CSBUY_ALLOWED_SL_PERC_RANGE[0] || 0;
+                                        let max = Site.CSBUY_ALLOWED_SL_PERC_RANGE[1] || Infinity;
+                                        if (perx >= min && perx <= max) {
+                                            const SLPnL = ((token.SLP - token.current_price) / token.current_price) * 100;
+                                            if (SLPnL) {
+                                                let SLMC = ((SLPnL * buyMC) / 100) + buyMC;
+                                                let o = new LimitOrder();
+                                                o.amount = Site.CSBUY_PSAR_SL;
+                                                o.type = "sell";
+                                                o.marketcap = SLMC * -1;
+                                                token.pending_orders.push(o);
+                                            }
+                                        }
+                                    }
+                                    // Add all remaining AUTO SELL ORDERS
+                                    if (TokenEngine.autoSell) {
+                                        for (const autoSell of Site.CSBUY_SELL) {
+                                            let sellMC = ((autoSell.pnl * buyMC) / 100) + buyMC;
+                                            let o = new LimitOrder();
+                                            o.amount = autoSell.perc;
+                                            o.type = "sell";
+                                            o.marketcap = sellMC * (autoSell.pnl > 0 ? 1 : -1);
+                                            if (autoSell.trailing) {
+                                                o.perc = autoSell.pnl;
+                                                o.min_sell_pnl = autoSell.minPnL;
+                                                o.max_sell_pnl = autoSell.maxPnL;
+                                                o.trailing = true;
+                                            }
+                                            token.pending_orders.push(o);
+                                        }
+                                    }
+                                }
+                                TokenEngine.#tokens[mint].bought_once = true;
                             }
-                            TokenEngine.#tokens[mint].bought_once = true;
+                            token.entry_reasons.add(reason);
+                            WhaleEngine.addSelfAction(mint, `B${amt}`);
+                            Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt} > Success.`, 3);
+                            resolve(amtBought);
                         }
-                        token.entry_reasons.add(reason);
-                        WhaleEngine.addSelfAction(mint, `B${amt}`);
-                        resolve(amtBought);
+                        else {
+                            Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt} > Error > Buy corrected.`, 3);
+                            resolve(0);
+                        }
                     }
                     else {
-                        resolve(0);
+                        const bought = await TokenEngine.#trade("buy", mint, amt, retries, marketcapLimit);
+                        if (bought.succ) {
+                            token.entry_reasons.add(reason);
+                            WhaleEngine.addSelfAction(mint, `B${amt}`);
+                            resolve(bought.message);
+                            Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt} > Success.`, 3);
+                        }
+                        else {
+                            Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt} > Error > ${bought.message}.`, 3);
+                            resolve(0);
+                        }
                     }
                 }
                 else {
-                    const bought = await TokenEngine.#trade("buy", mint, amt, retries, marketcapLimit);
-                    if (bought.succ) {
-                        token.entry_reasons.add(reason);
-                        WhaleEngine.addSelfAction(mint, `B${amt}`);
-                        resolve(bought.message);
-                    }
-                    else {
-                        Log.flow(`TE > Buy > Error > ${bought.message}`, 1);
-                        resolve(0);
-                    }
+                    Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt} > Error > Out of slots.`, 3);
+                    resolve(0);
                 }
             }
             else {
@@ -784,6 +915,7 @@ class TokenEngine {
         return new Promise(async (resolve, reject) => {
             const token = TokenEngine.getToken(mint);
             if (token) {
+                Log.flow(`Sell > ${token.symbol} > ${reason} > ${perc}% > PnL ${FFF(token.pnl)}%.`, 3);
                 if (!WhaleEngine) {
                     WhaleEngine = require("./whale").WhaleEngine;
                 }
@@ -797,21 +929,34 @@ class TokenEngine {
                         }
                         token.exit_reasons.add(reason);
                         WhaleEngine.addSelfAction(mint, `S${perc}`);
+
+                        if (perc == 100 && token.CSB && token.SLP) {
+                            token.CSB = false;
+                            token.SLP = 0;
+                            token.bought_once = false;
+                            token.pending_orders = [];
+                            token.executed_peak_drops = [];
+                            token.executed_whale_exits = [];
+                        }
+                        Log.flow(`Sell > ${token.symbol} > ${reason} > ${perc}% > Success.`, 3);
                         resolve(solAmt);
                     }
                     else {
+                        Log.flow(`Sell > ${token.symbol} > ${reason} > ${perc}% > Error > No Price Available.`, 3);
                         resolve(0);
                     }
                 }
                 else {
                     const sold = await TokenEngine.#trade("sell", mint, `${perc}%`, retries, marketcapLimit);
                     if (sold.succ) {
+
                         token.exit_reasons.add(reason);
                         WhaleEngine.addSelfAction(mint, `S${perc}`);
+                        Log.flow(`Sell > ${token.symbol} > ${reason} > ${perc}% > Success.`, 3);
                         resolve(sold.message);
                     }
                     else {
-                        Log.flow(`TE > Sell > Error > ${sold.message}`, 1);
+                        Log.flow(`Sell > ${token.symbol} > ${reason} > ${perc}% > Error > ${sold.message}.`, 3);
                         resolve(0);
                     }
                 }

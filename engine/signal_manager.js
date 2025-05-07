@@ -42,10 +42,9 @@ class SignalManager {
      * @param {boolean} buy 
      * @param {boolean} sell 
      * @param {string} desc 
-     * @param {number} vol 
      * @param {number} tpsl 
      */
-    static entry = async (mint, buy, sell, desc, vol, tpsl) => {
+    static entry = async (mint, buy, sell, desc, tpsl) => {
         if (!TokenEngine) {
             TokenEngine = require("./token");
         }
@@ -72,7 +71,7 @@ class SignalManager {
                     m += `💲 *${token.name}*\n`;
                     m += `🚨 *${desc}*\n`;
                     m += `R ⏱️ *${getTimeElapsed(token.reg_timestamp, Date.now())}*\n`;
-                    m += `*Vol* ${vol.toFixed(2)}% *TSL* ${tpsl.toFixed(2)}% \n\n`
+                    m += `SL P 💰 ${Site.BASE} ${FFF(tpsl)} \n\n`;
                     m += `P 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
                     m += `MM P 💰 ${Site.BASE} ${FFF(token.least_price)} => ${FFF(token.peak_price)} \\(${formatNumber((((token.peak_price - token.least_price) / token.least_price * 100) || 0).toFixed(2))}%\\)\n`;
                     m += `MC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\n `;
@@ -170,7 +169,7 @@ class SignalManager {
                     m += `💲 *${token.name}*\n`;
                     m += `🚨 *${desc}*\n`;
                     m += `R ⏱️ *${getTimeElapsed(token.reg_timestamp, Date.now())}*\n`;
-                    m += `*Vol* ${vol.toFixed(2)}% *TSL* ${tpsl.toFixed(2)}% \n\n`
+                    m += `SL P 💰 ${Site.BASE} ${FFF(tpsl)} \n\n`;
                     m += `P 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
                     m += `MM P 💰 ${Site.BASE} ${FFF(token.least_price)} => ${FFF(token.peak_price)} \\(${formatNumber((((token.peak_price - token.least_price) / token.least_price * 100) || 0).toFixed(2))}%\\)\n`;
                     m += `MC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\n `;

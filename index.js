@@ -37,6 +37,11 @@ app.use(
     })
 );
 
+// app.use((req, res, next) => {
+//     console.log(req.method, req.url);
+//     next();
+// });
+
 app.post("/webhook", (req, res) => {
     const receivedToken = req.headers["x-telegram-bot-api-secret-token"];
     if (receivedToken != Site.TG_WH_SECRET_TOKEN) {
@@ -49,7 +54,7 @@ app.post("/webhook", (req, res) => {
 
 const startTime = getDateTime(Date.now());
 app.get("/", (req, res) => {
-    res.type("txt").send(`${Site.TITLE} running since ${startTime} UTC`);
+    res.type("txt").send(`${Site.TITLE} running since ${startTime} ${process.env.TZ || "UTC"}`);
 });
 
 // app.get("/what", (req, res) => {
@@ -76,10 +81,12 @@ const proceedAfterInit = () => {
         ObserverEngine.registerSocket(ws);
         Log.flow(`WebSocket > Connected.`, 4);
 
-        let payload = {
-            method: "subscribeNewToken",
+        if(!Site.TURN_OFF_KIKO){
+            let payload = {
+                method: "subscribeNewToken",
+            }
+            ws.send(JSON.stringify(payload));
         }
-        ws.send(JSON.stringify(payload));
 
         if (TokenEngine.getTokensMint().length > 0) {
             let payload = {

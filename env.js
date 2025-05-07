@@ -77,11 +77,6 @@ class Site {
     static IND_MACD_SLOW_PERIOD = parseInt(process.env.IND_MACD_SLOW_PERIOD || "26") || 26;
     static IND_MACD_SIGNAL_PERIOD = parseInt(process.env.IND_MACD_SIGNAL_PERIOD || "9") || 9;
     static IND_MA_PERIOD = parseInt(process.env.IND_MA_PERIOD || "10") || 10;
-    static IND_AO_FAST_PERIOD = parseInt(process.env.IND_AO_FAST_PERIOD || "5") || 5;
-    static IND_AO_SLOW_PERIOD = parseInt(process.env.IND_AO_SLOW_PERIOD || "34") || 34;
-    static IND_FI_PERIOD = parseInt(process.env.IND_FI_PERIOD || "14") || 14;
-    static IND_BB_PERIOD = parseInt(process.env.IND_BB_PERIOD || "20") || 20;
-    static IND_BB_STDDEV = parseFloat(process.env.IND_BB_STDDEV || "2") || 2;
     static IND_PSAR_STEP = parseFloat(process.env.IND_PSAR_STEP || "0.02") || 0.02;
     static IND_PSAR_MAX = parseFloat(process.env.IND_PSAR_MAX || "0.2") || 0.2;
     static IND_STOCH_PERIOD = parseInt(process.env.IND_STOCH_PERIOD || "14") || 14;
@@ -89,6 +84,11 @@ class Site {
     static IND_DIR_LENGTH = parseInt(process.env.IND_DIR_LENGTH || "5") || 5;
     static IND_TREND_SUPPORT_THRESHOLD_RATIO = parseFloat(process.env.IND_TREND_SUPPORT_THRESHOLD_RATIO || "0.5") || 0.5;
     static IND_MAX_SIGNAL_HISTORY_LENGTH = parseInt(process.env.IND_MAX_SIGNAL_HISTORY_LENGTH || "5") || "5";
+    static IND_MACD_FOR_TREND = (process.env.IND_MACD_FOR_TREND || "").toLowerCase() == "true";
+    static IND_ONLY_STRONG_TREND = (process.env.IND_ONLY_STRONG_TREND || "").toLowerCase() == "true";
+    static IND_STOP_IF_OVERBOUGHT = (process.env.IND_STOP_IF_OVERBOUGHT || "").toLowerCase() == "true";
+    static IND_BULLISH_BUY = (process.env.IND_BULLISH_BUY || "").toLowerCase() == "true";
+    static IND_SIGNAL_COOLDOWN_PERIOD_MS = parseInt(process.env.IND_SIGNAL_COOLDOWN_PERIOD_MS || "0") || 60000;
 
     static DE_LOCAL_URL = process.env.DE_LOCAL_URL ?? "";
     static DE_LOCAL_PUB_KEY = keypair.publicKey.toBase58();
@@ -151,7 +151,8 @@ class Site {
     static AD_DEV_OTHER_TOKENS_MC_THRESHOLD = parseFloat(process.env.AD_DEV_OTHER_TOKENS_MC_THRESHOLD || "0");
 
     static SIGNATURES_MAX_LENGTH = parseInt(process.env.SIGNATURES_MAX_LENGTH || "0") || 100;
-    static TRADE_MAX_RETRIES = parseInt(process.env.TRADE_MAX_RETRIES || "0") || 0;
+    static TRADE_MAX_RETRIES_ENTRY = parseInt(process.env.TRADE_MAX_RETRIES_ENTRY || process.env.TRADE_MAX_RETRIES || "0") || 0;
+    static TRADE_MAX_RETRIES_EXIT = parseInt(process.env.TRADE_MAX_RETRIES_EXIT || process.env.TRADE_MAX_RETRIES || "0") || 0;
     static TRADE_RETRY_TIMEOUT_MS = parseInt(process.env.TRADE_RETRY_TIMEOUT_MS || "0") || 10000;
     static TRADE_AUTO_RECOVERY = (process.env.TRADE_AUTO_RECOVERY || "").toLowerCase() == "true";
     static TRADE_SEND_RETRY_NOTIFICATION = (process.env.TRADE_SEND_RETRY_NOTIFICATION || "").toLowerCase() == "true";
@@ -161,6 +162,16 @@ class Site {
 
     static WH_MAX_WHALES = parseInt(process.env.WH_MAX_WHALES || "0") || 10;
     static WH_MAX_LOGS = parseInt(process.env.WH_MAX_LOGS || "0") || 30;
+    static TOKEN_MAX_BUYS = parseInt(process.env.TOKEN_MAX_BUYS || "0") || Infinity;
+    static TURN_OFF_KIKO = (process.env.TURN_OFF_KIKO || "").toLowerCase() == "true";
+
+    static CSBUY_USE = (process.env.CSBUY_USE || "").toLowerCase() == "true";
+    static CSBUY_AMT_BASE = parseFloat(process.env.CSBUY_AMT_BASE || "0") || 0;
+    static CSBUY_PSAR_SL = Math.abs(parseInt(process.env.CSBUY_PSAR_SL || "0") || 0);
+    static CSBUY_SELL = (process.env.CSBUY_SELL || "").split("|").filter(x => x.length > 0).map(x => x.split(" ").filter(y => y.length > 0).map(y => parseFloat(y)).filter(y => !Number.isNaN(y))).filter(x => x.length >= 2 && x.length <= 5).map(x => ({ pnl: x[0], perc: x[1], trailing: (x[2] || 0) > 0, minPnL: x[3] ?? Number.MIN_VALUE, maxPnL: x[4] || Number.MAX_VALUE })).filter(x => x.pnl != 0 && x.perc >= 1 && x.perc <= 100);
+    static CSBUY_ALLOWED_SL_PERC_RANGE = (process.env.CSBUY_ALLOWED_SL_PERC_RANGE || "").split(" ").filter(x => x.length > 0).map(x => parseFloat(x)).filter(x => (!Number.isNaN(x)));
+    static COLLECTOR_MAX_FILE_SIZE_BYTES = parseInt(process.env.COLLECTOR_MAX_FILE_SIZE_BYTES || "0") || Infinity;
+    static COLLECTOR_CHECKER_COOLDOWN_MS = parseInt(process.env.COLLECTOR_CHECKER_COOLDOWN_MS || "0") || 20000;
 }
 
 module.exports = Site;

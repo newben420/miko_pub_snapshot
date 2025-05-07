@@ -11,6 +11,12 @@ const {
 } = require("technicalindicators");
 const Log = require("../lib/log");
 const SignalManager = require("./signal_manager");
+const FFF = require("../lib/fff");
+const calculateUtf8FileSize = require("../lib/file_size");
+const getDateTime = require("../lib/get_date_time");
+let CSBuy = null;
+let TelegramEngine = null;
+
 
 class Decision {
     /**
@@ -67,16 +73,28 @@ class SignalGraph {
 class CandlestickEngine {
 
     /**
-     * Holds take profit data for a token
-     * @type {Record<string, number[]>}
+     * Holds previous PSAR Bull/Bear values for a token
+     * @type {Record<string, boolean[]>}
      */
-    static #tp = {};
+    static #isBull = {};
 
     /**
-     * Holds volatility data for a token
-     * @type {Record<string, number[]>}
+     * Called when a token is deleted from token engine so its data can be cleared here as well
+     * @param {string} mint 
      */
-    static #vol = {};
+    static removeToken = (mint) => {
+        delete CandlestickEngine.#isBull[mint];
+        delete CandlestickEngine.#latestDecisions[mint];
+        delete CandlestickEngine.#signals[mint];
+        delete CandlestickEngine.#signalHistory[mint];
+        delete CandlestickEngine.#emitTS[mint];
+    }
+
+    /**
+     * Keeps timestamp of the last time a signal was emitted for a token
+     * @type {Record<string, number>}
+     */
+    static #emitTS = {};
 
     /**
      * Handles candlestick data anaylsis
@@ -108,193 +126,130 @@ class CandlestickEngine {
             */
             const volume = data.map(x => x.volume);
 
-            let buy = false;
-            let sell = false;
-            let desc = "";
-
             const latestRate = close[close.length - 1];
 
+            Log.flow(`CE > ${name} > Begin iteration.`, 6);
+
+            if (!CandlestickEngine.#isBull[mint]) {
+                CandlestickEngine.#isBull[mint] = [];
+            }
+
+            const psar = PSAR.calculate({ high, low, step: Site.IND_PSAR_STEP, max: Site.IND_PSAR_MAX });
+            const psarBull = (psar[psar.length - 1] ?? latestRate) < latestRate;
+            const psarBear = (psar[psar.length - 1] ?? latestRate) > latestRate;
             const csd = { open, close, high, low };
             const dirLength = Math.min(Site.IND_DIR_LENGTH, data.length);
 
-            // PRIMARY INDICATORS
-            const macd = MACD.calculate({ values: close, fastPeriod: Site.IND_MACD_FAST_PERIOD, slowPeriod: Site.IND_MACD_SLOW_PERIOD, signalPeriod: Site.IND_MACD_SIGNAL_PERIOD, SimpleMAOscillator: false, SimpleMASignal: false });
-            const psar = PSAR.calculate({ high, low, step: Site.IND_PSAR_STEP, max: Site.IND_PSAR_MAX });
-            const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_STOCH_PERIOD, signalPeriod: Site.IND_STOCH_SIGNAL_PERIOD });
-            // PRIMARY COMPUTATIONS
-            const macdBull = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD > macd[macd.length - 1].signal : false) : false;
-            const macdBear = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD < macd[macd.length - 1].signal : false) : false;
-            const psarBull = (psar[psar.length - 1] ?? latestRate) < latestRate;
-            const psarBear = (psar[psar.length - 1] ?? latestRate) > latestRate;
-            const stochOB = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) > 80) : false;
-            const stochOS = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) < 20) : false;
-            const stochBull = stochOB ? false : (stoch.length > 1 ? (((stoch[stoch.length - 1].k || stoch[stoch.length - 1].k === 0) && (stoch[stoch.length - 1].d || stoch[stoch.length - 1].d === 0)) ? (stoch[stoch.length - 1].k > stoch[stoch.length - 1].d) : false) : false);
-            const stochBear = stochOS ? false : (stoch.length > 1 ? (((stoch[stoch.length - 1].k || stoch[stoch.length - 1].k === 0) && (stoch[stoch.length - 1].d || stoch[stoch.length - 1].d === 0)) ? (stoch[stoch.length - 1].k < stoch[stoch.length - 1].d) : false) : false);
-
-            // COMPUTE TREND CONFIRMATION AND SUPORTING INDICATORS
-            const trendBull = bullish(csd);
-            const trendBear = bearish(csd);
-            const vwap = VWAP.calculate({ close, high, low, volume });
-            const vwapBull = vwap.length > 0 ? latestRate > vwap[vwap.length - 1] : false;
-            const vwapBear = vwap.length > 0 ? latestRate < vwap[vwap.length - 1] : false;
-            const adl = ADL.calculate({ close, high, low, volume });
-            const adlDir = compute1ExpDirection(adl, dirLength);
-            const priceDir = compute1ExpDirection(close, dirLength);
-            const priceDir2 = compute2ExpDirection(close, dirLength);
-            const adlBull = adlDir > 0 && priceDir > 0;
-            const adlBear = adlDir < 0 && priceDir < 0;
-            const atr = ATR.calculate({ close, high, low, period: Site.IND_MA_PERIOD });
-            const ao = AwesomeOscillator.calculate({ fastPeriod: Site.IND_AO_FAST_PERIOD, slowPeriod: Site.IND_AO_SLOW_PERIOD, high, low });
-            const aoBull = (ao[ao.length - 1] ?? -1) > 0;
-            const aoBear = (ao[ao.length - 1] ?? 1) < 0;
-            const roc = ROC.calculate({ values: close, period: Site.IND_MA_PERIOD });
-            const rocDir = computeArithmeticDirection(roc, dirLength);
-            const rocBull = (roc[roc.length - 1] ?? -1) > 0;
-            const rocBear = (roc[roc.length - 1] ?? 1) < 0;
-            const fi = ForceIndex.calculate({ close, volume, period: Site.IND_FI_PERIOD });
-            const fiDir = computeArithmeticDirection(fi, dirLength);
-            const fiBull = fiDir > 0 && (fi[fi.length - 1] ?? 0) > 0;
-            const fiBear = fiDir < 0 && (fi[fi.length - 1] ?? 0) < 0;
-            const trix = TRIX.calculate({ period: Site.IND_MA_PERIOD, values: close });
-            const trixBull = (trix[trix.length - 1] ?? 0) > 0;
-            const trixBear = (trix[trix.length - 1] ?? 0) < 0;
-            const adx = ADX.calculate({ close, high, low, period: Site.IND_MA_PERIOD });
-            const adxStrong = adx.length > 0 ? ((adx[adx.length - 1].adx || adx[adx.length - 1].adx === 0) ? adx[adx.length - 1].adx > 25 : false) : false;
-            const adxWeak = adx.length > 0 ? ((adx[adx.length - 1].adx || adx[adx.length - 1].adx === 0) ? adx[adx.length - 1].adx < 20 : false) : false;
-            const bb = BollingerBands.calculate({ period: Site.IND_BB_PERIOD, stdDev: Site.IND_BB_STDDEV, values: close });
-            const bbBuy = bb.length > 0 ? latestRate < bb[bb.length - 1].lower : false;
-            const bbSell = bb.length > 0 ? latestRate > bb[bb.length - 1].upper : false;
-
-            const cci = CCI.calculate({ close, high, low, period: Site.IND_MA_PERIOD });
-            const mfi = MFI.calculate({ close, high, low, volume, period: Math.min(Site.IND_MA_PERIOD, data.length) });
-            const rsi = RSI.calculate({ values: close, period: Math.min(Site.IND_MA_PERIOD, data.length) });
-
-            // PRE-FLOW
-            const overallBull = macdBull && (psarBull || stochBull);
-            const overallBear = macdBear && (psarBear || stochBear);
-            const supportBull = booleanThreshold([
-                trendBull,
-                vwapBull,
-                adlBull,
-                aoBull,
-                rocBull,
-                fiBull,
-                trixBull,
-            ], Site.IND_TREND_SUPPORT_THRESHOLD_RATIO);
-            const supportBear = booleanThreshold([
-                trendBear,
-                vwapBear,
-                adlBear,
-                aoBear,
-                rocBear,
-                fiBear,
-                trixBear,
-            ], Site.IND_TREND_SUPPORT_THRESHOLD_RATIO);
-            const goodBuy = bbBuy;
-            const goodSell = bbSell;
-            const volatilityPerc = (atr.length > 0 ? atr[atr.length - 1] : 0) / latestRate * 100;
-            const TPSLPerc = Math.abs((psar[psar.length - 1] ?? latestRate) - latestRate) / latestRate * 100;
-            if (!CandlestickEngine.#tp[mint]) {
-                CandlestickEngine.#tp[mint] = [];
+            if (psarBear) {
+                CandlestickEngine.#isBull[mint].push(false);
             }
-            if (!CandlestickEngine.#vol[mint]) {
-                CandlestickEngine.#vol[mint] = [];
-            }
-            CandlestickEngine.#tp[mint].push(TPSLPerc);
-            CandlestickEngine.#vol[mint].push(volatilityPerc);
-            if (CandlestickEngine.#tp[mint].length > dirLength) {
-                CandlestickEngine.#tp[mint] = CandlestickEngine.#tp[mint].slice(CandlestickEngine.#tp[mint].length - dirLength);
-            }
-            if (CandlestickEngine.#vol[mint].length > dirLength) {
-                CandlestickEngine.#vol[mint] = CandlestickEngine.#vol[mint].slice(CandlestickEngine.#vol[mint].length - dirLength);
+            else if (psarBull) {
+                CandlestickEngine.#isBull[mint].push(true);
             }
 
-            // FLOW
-            if (overallBull) {
-                const weak = adxWeak;
-                const cciOB = (cci[cci.length - 1] ?? -1) > 100;
-                const mfiOB = (mfi[mfi.length - 1] ?? 80) > 80;
-                const rsiOB = (rsi[rsi.length - 1] ?? 70) > 70;
-                const OROverBought = stochOB || cciOB || mfiOB || rsiOB;
-                const BTOverbought = booleanThreshold([cciOB, mfiOB, rsiOB, stochOB], (3 / 4));
-                const rocBearDive = priceDir > 0 && rocDir < 0;
-                const fiBearDive = priceDir > 0 && fiDir < 0;
-                const divergence = rocBearDive || fiBearDive;
-                const reversal = OROverBought ? (BTOverbought || divergence) : false;
+            if (CandlestickEngine.#isBull[mint].length > Site.IND_DIR_LENGTH) {
+                CandlestickEngine.#isBull[mint] = CandlestickEngine.#isBull[mint].slice(CandlestickEngine.#isBull[mint].length - Site.IND_DIR_LENGTH);
+            }
 
-                if (reversal) {
-                    buy = false;
-                    sell = true;
-                    desc = "BULL EXIT";
-                }
-                else if ((!weak) || supportBull || goodBuy) {
-                    buy = `${clearDirection(CandlestickEngine.#vol[mint], dirLength)}${clearDirection(CandlestickEngine.#tp[mint], dirLength)}` != '11';
-                    sell = false;
-                    desc = "BULL ENTRY";
+            let buy = false;
+            let sell = false;
+            let desc = "No Signal";
+            let stopLossPrice = psar[psar.length - 1] || 0;
+
+            if (CandlestickEngine.#isBull[mint].length >= 2) {
+                // Enough outputs have been made
+                let recent = CandlestickEngine.#isBull[mint][CandlestickEngine.#isBull[mint].length - 1];
+                let second = CandlestickEngine.#isBull[mint][CandlestickEngine.#isBull[mint].length - 2];
+                if ((!second) && recent) {
+                    // Entry point detected
+                    Log.flow(`CE > ${name} > Entry detected. Using ${Site.IND_MACD_FOR_TREND ? "MACD" : "Bullish Function"} for trend.`, 6);
+                    /**
+                     * @type {boolean}
+                     */
+                    let bull = false;
+                    if (Site.IND_MACD_FOR_TREND) {
+                        Log.flow(`CE > ${name} > Entry detected.`, 6);
+                        const macd = MACD.calculate({ values: close, fastPeriod: Site.IND_MACD_FAST_PERIOD, slowPeriod: Site.IND_MACD_SLOW_PERIOD, signalPeriod: Site.IND_MACD_SIGNAL_PERIOD, SimpleMAOscillator: false, SimpleMASignal: false });
+                        bull = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD > macd[macd.length - 1].signal : false) : false;
+                    }
+                    else {
+                        bull = bullish(csd);
+                    }
+                    if (bull) {
+                        const adx = ADX.calculate({ close, high, low, period: Site.IND_MA_PERIOD });
+                        const adxStrong = adx.length > 0 ? ((adx[adx.length - 1].adx || adx[adx.length - 1].adx === 0) ? adx[adx.length - 1].adx > 25 : false) : false;
+                        Log.flow(`CE > ${name} > Trend is a ${adxStrong ? "" : "non-"}strong bullish.`, 6);
+                        if ((Site.IND_ONLY_STRONG_TREND && adxStrong) || (!Site.IND_ONLY_STRONG_TREND)) {
+                            const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_STOCH_PERIOD, signalPeriod: Site.IND_STOCH_SIGNAL_PERIOD });
+                            const rsi = RSI.calculate({ values: close, period: Math.min(Site.IND_MA_PERIOD, data.length) });
+                            const stochOB = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) > 80) : false;
+                            const rsiOB = (rsi[rsi.length - 1] ?? 70) > 70;
+                            const overbought = stochOB && rsiOB;
+                            if ((!overbought) || (overbought && (!Site.IND_STOP_IF_OVERBOUGHT))) {
+                                Log.flow(`CE > ${name} > ${overbought ? "Overbought" : "No overbought"} detected and can proceed.`, 6);
+                                // entry point confirmed.
+                                buy = true;
+                                desc = "Confirmed Buy";
+                            }
+                            else {
+                                Log.flow(`CE > ${name} > Can not proceed in overbought.`, 6);
+                            }
+                        }
+                        else {
+                            Log.flow(`CE > ${name} > Weak trends are not allowed.`, 6);
+                        }
+                    }
+                    else {
+                        Log.flow(`CE > ${name} > Trend is not bullish.`, 6);
+                    }
                 }
                 else {
-                    buy = false;
-                    sell = false;
-                    desc = "WEAK BULL";
-                }
-            }
-            else if (overallBear) {
-                const strong = adxStrong;
-                const candlestickBullishReversal = abandonedbaby(csd) || bullishengulfingpattern(csd) ||
-                    threewhitesoldiers(csd) || morningstar(csd) || morningdojistar(csd) || hammerpattern(csd) ||
-                    dragonflydoji(csd) || bullishharami(csd) || bullishmarubozu(csd) || bullishharamicross(csd) ||
-                    tweezerbottom(csd);
-                const cciOS = (cci[cci.length - 1] ?? 1) < -100;
-                const mfiOS = (mfi[mfi.length - 1] ?? 20) < 20;
-                const rsiOS = (rsi[rsi.length - 1] ?? 30) < 30;
-                const OROverSold = stochOS || cciOS || mfiOS || rsiOS;
-                const BTOversold = booleanThreshold([cciOS, mfiOS, rsiOS, stochOS], (1 / 2));
-                const rocBullDive = priceDir < 0 && rocDir > 0;
-                const fiBullDive = priceDir < 0 && fiDir > 0;
-                const divergence = rocBullDive || fiBullDive;
-                const reversal = OROverSold ? (BTOversold || divergence || candlestickBullishReversal) : false;
-
-                if (reversal) {
-                    buy = `${clearDirection(CandlestickEngine.#vol[mint], dirLength)}${clearDirection(CandlestickEngine.#tp[mint], dirLength)}` == '11';
-                    sell = false;
-                    desc = "BEAR ENTRY";
-                }
-                else if (strong || supportBear || goodSell) {
-                    buy = false;
-                    sell = true;
-                    desc = "BEAR EXIT";
-                }
-                else {
-                    buy = false;
-                    sell = false;
-                    desc = "WEAK BEAR";
+                    Log.flow(`CE > ${name} > No entry detected. Prev(${second ? "Bull" : "Bear"}) | Latest(${recent ? "Bull" : "Bear"}).`, 6);
                 }
             }
             else {
-                const possibleEntry = goodBuy && supportBull && (computeArithmeticDirection(close, Site.directionLength) >= 0);
-                if (possibleEntry) {
+                Log.flow(`CE > ${name} > Not enough PSAR points.`, 6);
+            }
+
+            if ((!buy) && Site.IND_BULLISH_BUY) {
+                const macd = MACD.calculate({ values: close, fastPeriod: Site.IND_MACD_FAST_PERIOD, slowPeriod: Site.IND_MACD_SLOW_PERIOD, signalPeriod: Site.IND_MACD_SIGNAL_PERIOD, SimpleMAOscillator: false, SimpleMASignal: false });
+                const macdBull = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD > macd[macd.length - 1].signal : false) : false;
+                const bull = bullish(csd);
+                const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_STOCH_PERIOD, signalPeriod: Site.IND_STOCH_SIGNAL_PERIOD });
+                const rsi = RSI.calculate({ values: close, period: Math.min(Site.IND_MA_PERIOD, data.length) });
+                const stochOB = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) > 80) : false;
+                const rsiOB = (rsi[rsi.length - 1] ?? 70) > 70;
+                const b = macdBull && bull && psarBull && (Site.IND_STOP_IF_OVERBOUGHT ? ((!stochOB) && (!rsiOB)) : true);
+                if (b) {
                     buy = true;
-                    sell = false;
-                    desc = "NO TREND ENTRY";
-                }
-                else {
-                    buy = false;
-                    sell = false;
-                    desc = "NO TREND NO ACTION";
+                    desc = "Bullish Buy"
+                    Log.flow(`CE > ${name} > Bullish Buy.`, 6);
                 }
             }
-            const rate = latestRate;
-            const vol = volatilityPerc;
-            const tpsl = TPSLPerc;
-            CandlestickEngine.#multilayer(name, mint, buy, sell, desc, rate, ts)
+
+            const priceDir = compute1ExpDirection(close, dirLength);
+            const priceDir2 = compute2ExpDirection(close, dirLength);
+
+            CandlestickEngine.#multilayer(name, mint, buy, sell, desc, latestRate, ts)
             const signals = CandlestickEngine.#getMLSignalHistory(mint);
-            CandlestickEngine.#collector(mint, rate, signals[signals.length - 1], buy, sell, vol, tpsl, desc);
-            const { nbuy, nsell } = CandlestickEngine.#correctSignals(signals, buy, sell, desc);
-            buy = nbuy;
-            sell = nsell;
-            if(buy || sell){
-                SignalManager.entry(mint, buy, sell, desc, vol, tpsl);
+            CandlestickEngine.#collector(mint, latestRate, signals[signals.length - 1], buy, sell, stopLossPrice, desc);
+            // const { nbuy, nsell } = CandlestickEngine.#correctSignals(signals, buy, sell, desc);
+            // buy = nbuy;
+            // sell = nsell;
+            Log.flow(`CE > ${name} > ${desc} > SL: ${FFF(stopLossPrice)} | Mark: ${FFF(latestRate)}.`, 6);
+            if ((buy || sell) && ((Date.now() - (CandlestickEngine.#emitTS[mint] || 0)) >= Site.IND_SIGNAL_COOLDOWN_PERIOD_MS)) {
+                CandlestickEngine.#emitTS[mint] = Date.now();
+                SignalManager.entry(mint, buy, sell, desc, stopLossPrice);
+                if (buy) {
+                    if (!CSBuy) {
+                        CSBuy = require("./cs_buy");
+                    }
+                    CSBuy.entry(name, mint, desc, latestRate, stopLossPrice);
+                }
             }
+        }
+        else {
+            Log.flow(`CE > ${name} > Not enough candlestick data (${data.length} / ${Site.IND_MIN_LENGTH}).`, 6);
         }
     }
 
@@ -309,29 +264,29 @@ class CandlestickEngine {
     static #correctSignals = (signals, buy, sell, desc) => {
         let nbuy = buy;
         let nsell = sell;
-        if(signals.length < 3){
+        if (signals.length < 3) {
             nbuy = false;
             nsell = false;
         }
-        else{
-            if(signals.length > 3){
+        else {
+            if (signals.length > 3) {
                 signals = signals.slice(signals.length - 3);
             }
             let signal = signals.join(" ");
             let lastSig = signals[signals.length - 1];
-            if(buy){
-                if(desc.includes("BULL")){
+            if (buy) {
+                if (desc.includes("BULL")) {
                     nbuy = signal == "FHNP FHNP BDNP" || signal == "FGNO FHNP BDNP";
                 }
-                else{
+                else {
                     nbuy = signal == "BCNO ADMP ADMP" || signal == "ADMP ADMP ADMP";
                 }
             }
-            if(sell){
-                if(desc.includes("BULL")){
+            if (sell) {
+                if (desc.includes("BULL")) {
                     nsell = lastSig == "EHIL";
                 }
-                else{
+                else {
                     nsell = lastSig == "FGJK";
                 }
             }
@@ -348,7 +303,7 @@ class CandlestickEngine {
     static exit = () => {
         return new Promise((resolve, reject) => {
             try {
-                if (Site.IND_ML_COLLECT_DATA) {
+                if (Site.IND_ML_COLLECT_DATA && (!Site.PRODUCTION)) {
                     fs.writeFileSync(Site.IND_ML_DATA_PATH, JSON.stringify(CandlestickEngine.#collectedData, null, "\t"));
                     Log.flow("CandlestickEngine > Data collection saved.");
                 }
@@ -362,14 +317,19 @@ class CandlestickEngine {
     }
 
     /**
+     * Keeps track of last time a collected file was sent
+     * @type {number}
+     */
+    static #lastChecked = 0;
+
+    /**
      * 
      * @param {string} mint 
      * @param {number} rate 
      * @param {string} signal 
      * @param {boolean} buy 
      * @param {boolean} sell 
-     * @param {number} vol 
-     * @param {number} tpsl 
+     * @param {number} sl 
      * @param {string} desc 
      */
     static #collector = (
@@ -378,8 +338,7 @@ class CandlestickEngine {
         signal,
         buy,
         sell,
-        vol,
-        tpsl,
+        sl,
         desc
     ) => {
         if (Site.IND_ML_COLLECT_DATA) {
@@ -392,11 +351,44 @@ class CandlestickEngine {
                     signal,
                     buy,
                     sell,
-                    vol,
-                    tpsl,
+                    sl,
                     desc,
                 });
+                if ((Date.now() - CandlestickEngine.#lastChecked) >= Site.COLLECTOR_CHECKER_COOLDOWN_MS) {
+                    try {
+                        if (!TelegramEngine) {
+                            TelegramEngine = require("./telegram");
+                        }
+                        const content = JSON.stringify(CandlestickEngine.#collectedData);
+                        const size = calculateUtf8FileSize(content);
+                        if (size >= Site.COLLECTOR_MAX_FILE_SIZE_BYTES) {
+                            CandlestickEngine.sendCollected();
+                        }
+                    } catch (error) {
+                        Log.dev(error);
+                    }
+                }
             }
+        }
+    }
+
+    static sendCollected = async () => {
+        try {
+            if (!TelegramEngine) {
+                TelegramEngine = require("./telegram");
+            }
+            const content = JSON.stringify(CandlestickEngine.#collectedData);
+            if (content.length > 0) {
+                let caption = `*Collected Candlestick Analysis Data* - ${getDateTime()}`;
+                const d = new Date();
+                let filename = `${d.getFullYear().toString().padStart(2, '0')}${(d.getMonth() + 1).toString().padStart(2, '0')}${(d.getDate()).toString().padStart(2, '0')}${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}${d.getSeconds().toString().padStart(2, '0')}.json`;
+                const done = await TelegramEngine.sendStringAsJSONFile(content, caption, filename);
+                if (done) {
+                    CandlestickEngine.#collectedData = {};
+                }
+            }
+        } catch (error) {
+            Log.dev(error);
         }
     }
 
