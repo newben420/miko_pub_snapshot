@@ -1,7 +1,7 @@
 {
-  "name": "miko",
+  "name": "stegen",
   "version": "1.0.0",
-  "description": "Kiko-extended automation-enhanced Milo. Milo is a high-yield easy-to-use manual degen tool.",
+  "description": "static combo of pumpscan and solexe",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

@@ -372,20 +372,27 @@ class CandlestickEngine {
         }
     }
 
+
+    static #sending = false;
+
     static sendCollected = async () => {
         try {
-            if (!TelegramEngine) {
-                TelegramEngine = require("./telegram");
-            }
-            const content = JSON.stringify(CandlestickEngine.#collectedData);
-            if (content.length > 0) {
-                let caption = `*Collected Candlestick Analysis Data* - ${getDateTime()}`;
-                const d = new Date();
-                let filename = `${d.getFullYear().toString().padStart(2, '0')}${(d.getMonth() + 1).toString().padStart(2, '0')}${(d.getDate()).toString().padStart(2, '0')}${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}${d.getSeconds().toString().padStart(2, '0')}.json`;
-                const done = await TelegramEngine.sendStringAsJSONFile(content, caption, filename);
-                if (done) {
-                    CandlestickEngine.#collectedData = {};
+            if (!CandlestickEngine.#sending) {
+                CandlestickEngine.#sending = true;
+                if (!TelegramEngine) {
+                    TelegramEngine = require("./telegram");
                 }
+                const content = JSON.stringify(CandlestickEngine.#collectedData);
+                if (content.length > 0) {
+                    let caption = `*Collected Candlestick Analysis Data* - ${getDateTime()}`;
+                    const d = new Date();
+                    let filename = `${d.getFullYear().toString().padStart(2, '0')}${(d.getMonth() + 1).toString().padStart(2, '0')}${(d.getDate()).toString().padStart(2, '0')}${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}${d.getSeconds().toString().padStart(2, '0')}.json`;
+                    const done = await TelegramEngine.sendStringAsJSONFile(content, caption, filename);
+                    if (done) {
+                        CandlestickEngine.#collectedData = {};
+                    }
+                }
+                CandlestickEngine.#sending = false;
             }
         } catch (error) {
             Log.dev(error);

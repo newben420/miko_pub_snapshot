@@ -138,7 +138,7 @@ class TelegramEngine {
                 inn.push([]);
                 let kb = inn[inn.length - 1];
                 m += `${index}. *${token.name}*\n`;
-                m += `ℹ️ ${token.source} ‼️ ${token.rec_buy ? "B" : "DNB"} ‼️ ${token.rec_sell ? "S" : "DNS"}\n`;
+                m += `ℹ️ ${token.source} ‼️ ${token.rec_buy ? "B" : "DNB"} ‼️ ${token.rec_sell ? "S" : "DNS"} 🕯 ${token.price_history.length} \\/ ${Site.COL_MAX_LENGTH}\n`;
                 m += `⏱️ ${getTimeElapsed(token.reg_timestamp, Date.now())} ⏳ ${getTimeElapsed(token.last_updated, Date.now())}\n`;
                 m += `P 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
                 m += `MM P 💰 ${Site.BASE} ${FFF(token.least_price)} => ${FFF(token.peak_price)} \\(${formatNumber((((token.peak_price - token.least_price) / token.least_price * 100) || 0).toFixed(2))}%\\)\n`;

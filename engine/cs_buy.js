@@ -36,7 +36,7 @@ class CSBuy {
                         token.CSB = true;
                         token.SLP = slPrice;
                         token.MP = markPrice;
-                        const bought = await TokenEngine.buy(mint, amt, "CSBuy", Site.TRADE_MAX_RETRIES_ENTRY, [0, 0]);
+                        const bought = await TokenEngine.buy(mint, amt, `CSB ${description}`, Site.TRADE_MAX_RETRIES_ENTRY, [0, 0]);
                         if (!TelegramEngine) {
                             TelegramEngine = require("./telegram");
                         }

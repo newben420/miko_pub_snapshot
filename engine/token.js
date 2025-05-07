@@ -1,13 +1,14 @@
 const { VersionedTransaction, Connection, PublicKey, Transaction, sendAndConfirmTransaction } = require("@solana/web3.js");
 const Site = require("../env");
 const { Res } = require("../lib/res");
-const { Token, LimitOrder } = require("./token_model");
+const { Token, LimitOrder, OHLCV } = require("./token_model");
 const Log = require("../lib/log");
 const { get } = require("../lib/make_request");
 const WebSocket = require("ws");
 const FFF = require("../lib/fff");
 const SolPrice = require("./sol_price");
 const getTimeElapsed = require("../lib/get_time_elapsed");
+const getDateTime = require("../lib/get_date_time");
 let TelegramEngine = null;
 let WhaleEngine = null;
 let CandlestickEngine = null;
@@ -103,6 +104,7 @@ class TokenEngine {
                             name: (r.message.name || "").replace(/[^a-zA-Z0-9\s]/g, ""),
                             symbol: (r.message.symbol || "").replace(/[^a-zA-Z0-9\s]/g, ""),
                             description: (r.message.description || ""),
+                            pool: r.message.pump_swap_pool,
                         });
                     }
                     else {
@@ -223,7 +225,7 @@ class TokenEngine {
             else {
                 const metadata = await TokenEngine.getTokenInfo(mint);
                 if (metadata) {
-                    const { name, symbol, description } = metadata;
+                    const { name, symbol, description, pool } = metadata;
                     TokenEngine.#startObservation(mint);
                     TokenEngine.#tokens[mint] = new Token(name, symbol, mint, description, source);
                     TokenEngine.#tokens[mint].remove_ref = TokenEngine.removeToken;
@@ -236,6 +238,63 @@ class TokenEngine {
                             o.min_time = autoBuy.minTime;
                             o.max_time = autoBuy.maxTime;
                             TokenEngine.#tokens[mint].pending_orders.push(o);
+                        }
+                    }
+                    if (source == "Telegram") {
+                        //  && (Site.COL_DURATION_MS == 60000 || Site.COL_DURATION_MS == 300000)
+                        let valid = false;
+                        let interval = "";
+                        let url = "";
+                        if (pool) {
+                            interval = getTimeElapsed(0, Site.COL_DURATION_MS);
+                            valid = ["1s", "15s", "30s", "1m", "5m", "15m", "30m", "1h", "4h", "6h", "12h", "24h"].indexOf(interval) >= 0;
+                            url = `https://swap-api.pump.fun/v1/pools/${pool}/candles?interval=${interval}&limit=${Site.COL_MAX_LENGTH}&currency=${Site.BASE}`;
+                        }
+                        else {
+                            interval = Site.COL_DURATION_MS == 60000 ? 1 : 5;
+                            valid = Site.COL_DURATION_MS == 60000 || Site.COL_DURATION_MS == 300000;
+                            url = `${Site.PF_API}/candlesticks/${mint}/?offset=0&timeframe=${interval}&limit=${Site.COL_MAX_LENGTH}`;
+                        }
+                        if (valid) {
+                            get(url, r => {
+                                if (r.succ) {
+                                    if (Array.isArray(r.message)) {
+                                        /**
+                                         * @type {any[]}
+                                         */
+                                        let m = r.message;
+                                        if (pool) {
+                                            m = m.map(x => new OHLCV(
+                                                parseFloat(x.open) || 0,
+                                                parseFloat(x.high) || 0,
+                                                parseFloat(x.low) || 0,
+                                                parseFloat(x.close) || 0,
+                                                parseFloat(x.volume) || 0,
+                                            ))
+                                        }
+                                        else {
+                                            m = m.filter(x => (x.is_1_min && Site.COL_DURATION_MS == 60000) || (x.is_5_min && Site.COL_DURATION_MS == 300000)).map(x =>
+                                                new OHLCV(
+                                                    parseFloat(x.open) || 0,
+                                                    parseFloat(x.high) || 0,
+                                                    parseFloat(x.low) || 0,
+                                                    parseFloat(x.close) || 0,
+                                                    parseFloat(x.volume) || 0,
+                                                )
+                                            );
+                                        }
+                                        if (!CandlestickEngine) {
+                                            CandlestickEngine = require("./candlestick");
+                                        }
+                                        if (TokenEngine.#tokens[mint]) {
+                                            TokenEngine.#tokens[mint].price_history = m.concat(TokenEngine.#tokens[mint].price_history);
+                                            const l = m.length;
+                                            Log.flow(`CE > ${TokenEngine.#tokens[mint].name} > Fetched ${l} row${l == 1 ? "" : "s"} of historical candlestick data at ${interval} interval.`, 5);
+                                            CandlestickEngine.entry(TokenEngine.#tokens[mint].name, TokenEngine.#tokens[mint].mint, TokenEngine.#tokens[mint].price_history);
+                                        }
+                                    }
+                                }
+                            });
                         }
                     }
                     resolve(true);
@@ -374,7 +433,7 @@ class TokenEngine {
                 TokenEngine.#limitExec[mint] = true;
                 for (let i = 0; i < TokenEngine.#tokens[mint].pending_orders.length; i++) {
                     let order = TokenEngine.#tokens[mint].pending_orders[i];
-                    const sufficient = order.type == "buy" ? true : (order.amount <= TokenEngine.#tokens[mint].amount_held);
+                    const sufficient = order.type == "buy" ? true : (TokenEngine.#tokens[mint].amount_held > 0);
                     const allocation = TokenEngine.#tokens[mint].amount_held + 0;
                     const timeEla = Date.now() - TokenEngine.#tokens[mint].reg_timestamp;
                     if (order.min_time ? (timeEla >= order.min_time) : true) {

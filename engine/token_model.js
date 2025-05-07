@@ -410,7 +410,6 @@ class Token {
         this.min_pnl = 0;
         this.timeout_ref = setInterval(() => {
             if (this.current_price != 0) {
-                // this.price_history.push(this.current_price);
                 let obj = new OHLCV(this.temp_open, this.temp_high, this.temp_low, this.current_price, this.temp_volume || (this.price_history[this.price_history.length - 1] || {}).volume);
                 this.temp_open = 0;
                 this.temp_high = 0;
