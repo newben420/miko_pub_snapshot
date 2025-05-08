@@ -241,7 +241,6 @@ class TokenEngine {
                         }
                     }
                     if (source == "Telegram") {
-                        //  && (Site.COL_DURATION_MS == 60000 || Site.COL_DURATION_MS == 300000)
                         let valid = false;
                         let interval = "";
                         let url = "";
@@ -562,17 +561,19 @@ class TokenEngine {
                                     let perx = Math.abs((((token.SLP - token.MP) / token.MP) * 100) || 0);
                                     let min = Site.CSBUY_ALLOWED_SL_PERC_RANGE[0] || 0;
                                     let max = Site.CSBUY_ALLOWED_SL_PERC_RANGE[1] || Infinity;
-                                    if (perx >= min && perx <= max) {
-                                        const SLPnL = ((token.SLP - token.current_price) / token.current_price) * 100;
-                                        if (SLPnL) {
-                                            let SLMC = ((SLPnL * buyMC) / 100) + buyMC;
-                                            let o = new LimitOrder();
-                                            o.amount = Site.CSBUY_PSAR_SL;
-                                            o.type = "sell";
-                                            o.marketcap = SLMC * -1;
-                                            token.pending_orders.push(o);
-                                        }
+                                    if (perx < min) {
+                                        perx = min;
                                     }
+                                    if (perx > max) {
+                                        perx = max;
+                                    }
+                                    perx = perx * -1;
+                                    let SLMC = ((perx * buyMC) / 100) + buyMC;
+                                    let o = new LimitOrder();
+                                    o.amount = Site.CSBUY_PSAR_SL;
+                                    o.type = "sell";
+                                    o.marketcap = SLMC * -1;
+                                    token.pending_orders.push(o);
                                 }
                                 // Add all remaining AUTO SELL ORDERS
                                 if (TokenEngine.autoSell) {
@@ -894,17 +895,19 @@ class TokenEngine {
                                         let perx = Math.abs((((token.SLP - token.MP) / token.MP) * 100) || 0);
                                         let min = Site.CSBUY_ALLOWED_SL_PERC_RANGE[0] || 0;
                                         let max = Site.CSBUY_ALLOWED_SL_PERC_RANGE[1] || Infinity;
-                                        if (perx >= min && perx <= max) {
-                                            const SLPnL = ((token.SLP - token.current_price) / token.current_price) * 100;
-                                            if (SLPnL) {
-                                                let SLMC = ((SLPnL * buyMC) / 100) + buyMC;
-                                                let o = new LimitOrder();
-                                                o.amount = Site.CSBUY_PSAR_SL;
-                                                o.type = "sell";
-                                                o.marketcap = SLMC * -1;
-                                                token.pending_orders.push(o);
-                                            }
+                                        if (perx < min) {
+                                            perx = min;
                                         }
+                                        if (perx > max) {
+                                            perx = max;
+                                        }
+                                        perx = perx * -1;
+                                        let SLMC = ((perx * buyMC) / 100) + buyMC;
+                                        let o = new LimitOrder();
+                                        o.amount = Site.CSBUY_PSAR_SL;
+                                        o.type = "sell";
+                                        o.marketcap = SLMC * -1;
+                                        token.pending_orders.push(o);
                                     }
                                     // Add all remaining AUTO SELL ORDERS
                                     if (TokenEngine.autoSell) {

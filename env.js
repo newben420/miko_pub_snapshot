@@ -172,6 +172,14 @@ class Site {
     static CSBUY_ALLOWED_SL_PERC_RANGE = (process.env.CSBUY_ALLOWED_SL_PERC_RANGE || "").split(" ").filter(x => x.length > 0).map(x => parseFloat(x)).filter(x => (!Number.isNaN(x)));
     static COLLECTOR_MAX_FILE_SIZE_BYTES = parseInt(process.env.COLLECTOR_MAX_FILE_SIZE_BYTES || "0") || Infinity;
     static COLLECTOR_CHECKER_COOLDOWN_MS = parseInt(process.env.COLLECTOR_CHECKER_COOLDOWN_MS || "0") || 20000;
+
+    static SIM_TOKENS = (process.env.SIM_TOKENS || "").split(" ").filter(x => Regex.mint.test(x));
+    static SIM_TOTAL_ROWS = parseInt(process.env.SIM_TOTAL_ROWS || "0") || 1000;
+    static SIM_ANALYSIS_ROWS = parseInt(process.env.SIM_ANALYSIS_ROWS || "0") || 100;
+    static SIM_ANALYSIS_ROWS_MAX = parseInt(process.env.SIM_ANALYSIS_ROWS_MAX || "0") || 1000;
+    static SIM_INTERVAL_MS = parseInt(process.env.SIM_INTERVAL_MS || "0") || 60000;
+    static SIM_EXECS = (process.env.SIM_EXECS || "").split(" ").filter(x => x.length > 0);
+    static SIM_EXEC_USE_HIGH_FOR_RATE = (process.env.SIM_EXEC_USE_HIGH_FOR_RATE || "").toLowerCase() == "true";
 }
 
 module.exports = Site;

@@ -103,154 +103,172 @@ class CandlestickEngine {
      * @param {any[]} data 
      */
     static entry = (name, mint, data) => {
-        if (data.length >= Site.IND_MIN_LENGTH) {
-            const ts = Date.now();
-            /**
-             * @type {number[]}
-             */
-            const open = data.map(x => x.open);
-            /**
-            * @type {number[]}
-            */
-            const high = data.map(x => x.high);
-            /**
-            * @type {number[]}
-            */
-            const low = data.map(x => x.low);
-            /**
-            * @type {number[]}
-            */
-            const close = data.map(x => x.close);
-            /**
-            * @type {number[]}
-            */
-            const volume = data.map(x => x.volume);
+        return new Promise((resolve, reject) => {
+            if (data.length >= Site.IND_MIN_LENGTH) {
+                const ts = Date.now();
+                /**
+                 * @type {number[]}
+                 */
+                const open = data.map(x => x.open);
+                /**
+                * @type {number[]}
+                */
+                const high = data.map(x => x.high);
+                /**
+                * @type {number[]}
+                */
+                const low = data.map(x => x.low);
+                /**
+                * @type {number[]}
+                */
+                const close = data.map(x => x.close);
+                /**
+                * @type {number[]}
+                */
+                const volume = data.map(x => x.volume);
 
-            const latestRate = close[close.length - 1];
+                const latestRate = close[close.length - 1];
 
-            Log.flow(`CE > ${name} > Begin iteration.`, 6);
+                Log.flow(`CE > ${name} > Begin iteration.`, 6);
 
-            if (!CandlestickEngine.#isBull[mint]) {
-                CandlestickEngine.#isBull[mint] = [];
-            }
+                if (!CandlestickEngine.#isBull[mint]) {
+                    CandlestickEngine.#isBull[mint] = [];
+                }
 
-            const psar = PSAR.calculate({ high, low, step: Site.IND_PSAR_STEP, max: Site.IND_PSAR_MAX });
-            const psarBull = (psar[psar.length - 1] ?? latestRate) < latestRate;
-            const psarBear = (psar[psar.length - 1] ?? latestRate) > latestRate;
-            const csd = { open, close, high, low };
-            const dirLength = Math.min(Site.IND_DIR_LENGTH, data.length);
+                const psar = PSAR.calculate({ high, low, step: Site.IND_PSAR_STEP, max: Site.IND_PSAR_MAX });
+                const psarBull = (psar[psar.length - 1] ?? latestRate) < latestRate;
+                const psarBear = (psar[psar.length - 1] ?? latestRate) > latestRate;
+                const csd = { open, close, high, low };
+                const dirLength = Math.min(Site.IND_DIR_LENGTH, data.length);
 
-            if (psarBear) {
-                CandlestickEngine.#isBull[mint].push(false);
-            }
-            else if (psarBull) {
-                CandlestickEngine.#isBull[mint].push(true);
-            }
+                if (psarBear) {
+                    CandlestickEngine.#isBull[mint].push(false);
+                }
+                else if (psarBull) {
+                    CandlestickEngine.#isBull[mint].push(true);
+                }
 
-            if (CandlestickEngine.#isBull[mint].length > Site.IND_DIR_LENGTH) {
-                CandlestickEngine.#isBull[mint] = CandlestickEngine.#isBull[mint].slice(CandlestickEngine.#isBull[mint].length - Site.IND_DIR_LENGTH);
-            }
+                if (CandlestickEngine.#isBull[mint].length > Site.IND_DIR_LENGTH) {
+                    CandlestickEngine.#isBull[mint] = CandlestickEngine.#isBull[mint].slice(CandlestickEngine.#isBull[mint].length - Site.IND_DIR_LENGTH);
+                }
 
-            let buy = false;
-            let sell = false;
-            let desc = "No Signal";
-            let stopLossPrice = psar[psar.length - 1] || 0;
+                let buy = false;
+                let sell = false;
+                let desc = "No Signal";
+                let stopLossPrice = psar[psar.length - 1] || 0;
 
-            if (CandlestickEngine.#isBull[mint].length >= 2) {
-                // Enough outputs have been made
-                let recent = CandlestickEngine.#isBull[mint][CandlestickEngine.#isBull[mint].length - 1];
-                let second = CandlestickEngine.#isBull[mint][CandlestickEngine.#isBull[mint].length - 2];
-                if ((!second) && recent) {
-                    // Entry point detected
-                    Log.flow(`CE > ${name} > Entry detected. Using ${Site.IND_MACD_FOR_TREND ? "MACD" : "Bullish Function"} for trend.`, 6);
-                    /**
-                     * @type {boolean}
-                     */
-                    let bull = false;
-                    if (Site.IND_MACD_FOR_TREND) {
-                        Log.flow(`CE > ${name} > Entry detected.`, 6);
-                        const macd = MACD.calculate({ values: close, fastPeriod: Site.IND_MACD_FAST_PERIOD, slowPeriod: Site.IND_MACD_SLOW_PERIOD, signalPeriod: Site.IND_MACD_SIGNAL_PERIOD, SimpleMAOscillator: false, SimpleMASignal: false });
-                        bull = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD > macd[macd.length - 1].signal : false) : false;
-                    }
-                    else {
-                        bull = bullish(csd);
-                    }
-                    if (bull) {
-                        const adx = ADX.calculate({ close, high, low, period: Site.IND_MA_PERIOD });
-                        const adxStrong = adx.length > 0 ? ((adx[adx.length - 1].adx || adx[adx.length - 1].adx === 0) ? adx[adx.length - 1].adx > 25 : false) : false;
-                        Log.flow(`CE > ${name} > Trend is a ${adxStrong ? "" : "non-"}strong bullish.`, 6);
-                        if ((Site.IND_ONLY_STRONG_TREND && adxStrong) || (!Site.IND_ONLY_STRONG_TREND)) {
-                            const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_STOCH_PERIOD, signalPeriod: Site.IND_STOCH_SIGNAL_PERIOD });
-                            const rsi = RSI.calculate({ values: close, period: Math.min(Site.IND_MA_PERIOD, data.length) });
-                            const stochOB = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) > 80) : false;
-                            const rsiOB = (rsi[rsi.length - 1] ?? 70) > 70;
-                            const overbought = stochOB && rsiOB;
-                            if ((!overbought) || (overbought && (!Site.IND_STOP_IF_OVERBOUGHT))) {
-                                Log.flow(`CE > ${name} > ${overbought ? "Overbought" : "No overbought"} detected and can proceed.`, 6);
-                                // entry point confirmed.
-                                buy = true;
-                                desc = "Confirmed Buy";
+                if (CandlestickEngine.#isBull[mint].length >= 2) {
+                    // Enough outputs have been made
+                    let recent = CandlestickEngine.#isBull[mint][CandlestickEngine.#isBull[mint].length - 1];
+                    let second = CandlestickEngine.#isBull[mint][CandlestickEngine.#isBull[mint].length - 2];
+                    if ((!second) && recent) {
+                        // Entry point detected
+                        Log.flow(`CE > ${name} > Entry detected. Using ${Site.IND_MACD_FOR_TREND ? "MACD" : "Bullish Function"} for trend.`, 6);
+                        /**
+                         * @type {boolean}
+                         */
+                        let bull = false;
+                        if (Site.IND_MACD_FOR_TREND) {
+                            Log.flow(`CE > ${name} > Entry detected.`, 6);
+                            const macd = MACD.calculate({ values: close, fastPeriod: Site.IND_MACD_FAST_PERIOD, slowPeriod: Site.IND_MACD_SLOW_PERIOD, signalPeriod: Site.IND_MACD_SIGNAL_PERIOD, SimpleMAOscillator: false, SimpleMASignal: false });
+                            bull = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD > macd[macd.length - 1].signal : false) : false;
+                        }
+                        else {
+                            bull = bullish(csd);
+                        }
+                        if (bull) {
+                            const adx = ADX.calculate({ close, high, low, period: Site.IND_MA_PERIOD });
+                            const adxStrong = adx.length > 0 ? ((adx[adx.length - 1].adx || adx[adx.length - 1].adx === 0) ? adx[adx.length - 1].adx > 25 : false) : false;
+                            Log.flow(`CE > ${name} > Trend is a ${adxStrong ? "" : "non-"}strong bullish.`, 6);
+                            if ((Site.IND_ONLY_STRONG_TREND && adxStrong) || (!Site.IND_ONLY_STRONG_TREND)) {
+                                const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_STOCH_PERIOD, signalPeriod: Site.IND_STOCH_SIGNAL_PERIOD });
+                                const rsi = RSI.calculate({ values: close, period: Math.min(Site.IND_MA_PERIOD, data.length) });
+                                const stochOB = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) > 80) : false;
+                                const rsiOB = (rsi[rsi.length - 1] ?? 70) > 70;
+                                const overbought = stochOB && rsiOB;
+                                if ((!overbought) || (overbought && (!Site.IND_STOP_IF_OVERBOUGHT))) {
+                                    Log.flow(`CE > ${name} > ${overbought ? "Overbought" : "No overbought"} detected and can proceed.`, 6);
+                                    // entry point confirmed.
+                                    buy = true;
+                                    desc = "Confirmed Buy";
+                                }
+                                else {
+                                    Log.flow(`CE > ${name} > Can not proceed in overbought.`, 6);
+                                }
                             }
                             else {
-                                Log.flow(`CE > ${name} > Can not proceed in overbought.`, 6);
+                                Log.flow(`CE > ${name} > Weak trends are not allowed.`, 6);
                             }
                         }
                         else {
-                            Log.flow(`CE > ${name} > Weak trends are not allowed.`, 6);
+                            Log.flow(`CE > ${name} > Trend is not bullish.`, 6);
                         }
                     }
                     else {
-                        Log.flow(`CE > ${name} > Trend is not bullish.`, 6);
+                        Log.flow(`CE > ${name} > No entry detected. Prev(${second ? "Bull" : "Bear"}) | Latest(${recent ? "Bull" : "Bear"}).`, 6);
                     }
                 }
                 else {
-                    Log.flow(`CE > ${name} > No entry detected. Prev(${second ? "Bull" : "Bear"}) | Latest(${recent ? "Bull" : "Bear"}).`, 6);
+                    Log.flow(`CE > ${name} > Not enough PSAR points.`, 6);
                 }
+
+                if ((!buy) && Site.IND_BULLISH_BUY) {
+                    const macd = MACD.calculate({ values: close, fastPeriod: Site.IND_MACD_FAST_PERIOD, slowPeriod: Site.IND_MACD_SLOW_PERIOD, signalPeriod: Site.IND_MACD_SIGNAL_PERIOD, SimpleMAOscillator: false, SimpleMASignal: false });
+                    const macdBull = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD > macd[macd.length - 1].signal : false) : false;
+                    const bull = bullish(csd);
+                    const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_STOCH_PERIOD, signalPeriod: Site.IND_STOCH_SIGNAL_PERIOD });
+                    const rsi = RSI.calculate({ values: close, period: Math.min(Site.IND_MA_PERIOD, data.length) });
+                    const stochOB = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) > 80) : false;
+                    const rsiOB = (rsi[rsi.length - 1] ?? 70) > 70;
+                    const b = macdBull && bull && psarBull && (Site.IND_STOP_IF_OVERBOUGHT ? ((!stochOB) && (!rsiOB)) : true);
+                    if (b) {
+                        buy = true;
+                        desc = "Bullish Buy"
+                        Log.flow(`CE > ${name} > Bullish Buy.`, 6);
+                    }
+                }
+
+                const priceDir = compute1ExpDirection(close, dirLength);
+                const priceDir2 = compute2ExpDirection(close, dirLength);
+
+                CandlestickEngine.#multilayer(name, mint, buy, sell, desc, latestRate, ts)
+                const signals = CandlestickEngine.#getMLSignalHistory(mint);
+                CandlestickEngine.#collector(mint, latestRate, signals[signals.length - 1], buy, sell, stopLossPrice, desc);
+                // const { nbuy, nsell } = CandlestickEngine.#correctSignals(signals, buy, sell, desc);
+                // buy = nbuy;
+                // sell = nsell;
+                Log.flow(`CE > ${name} > ${desc} > SL: ${FFF(stopLossPrice)} | Mark: ${FFF(latestRate)}.`, 6);
+                if ((buy || sell) && ((Date.now() - (CandlestickEngine.#emitTS[mint] || 0)) >= Site.IND_SIGNAL_COOLDOWN_PERIOD_MS)) {
+                    CandlestickEngine.#emitTS[mint] = Date.now();
+                    SignalManager.entry(mint, buy, sell, desc, stopLossPrice);
+                    if (buy) {
+                        if (!CSBuy) {
+                            CSBuy = require("./cs_buy");
+                        }
+                        CSBuy.entry(name, mint, desc, latestRate, stopLossPrice);
+                    }
+                }
+                resolve({
+                    rate: latestRate, 
+                    signal: signals[signals.length - 1] || "",
+                    buy,
+                    sell,
+                    sl: stopLossPrice,
+                    desc,
+                });
             }
             else {
-                Log.flow(`CE > ${name} > Not enough PSAR points.`, 6);
+                Log.flow(`CE > ${name} > Not enough candlestick data (${data.length} / ${Site.IND_MIN_LENGTH}).`, 6);
+                resolve({
+                    rate: 0, 
+                    signal: "",
+                    buy: false,
+                    sell: false,
+                    sl: 0,
+                    desc: "",
+                });
             }
-
-            if ((!buy) && Site.IND_BULLISH_BUY) {
-                const macd = MACD.calculate({ values: close, fastPeriod: Site.IND_MACD_FAST_PERIOD, slowPeriod: Site.IND_MACD_SLOW_PERIOD, signalPeriod: Site.IND_MACD_SIGNAL_PERIOD, SimpleMAOscillator: false, SimpleMASignal: false });
-                const macdBull = macd.length > 0 ? (((macd[macd.length - 1].MACD || macd[macd.length - 1].MACD === 0) && (macd[macd.length - 1].signal || macd[macd.length - 1].signal === 0)) ? macd[macd.length - 1].MACD > macd[macd.length - 1].signal : false) : false;
-                const bull = bullish(csd);
-                const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_STOCH_PERIOD, signalPeriod: Site.IND_STOCH_SIGNAL_PERIOD });
-                const rsi = RSI.calculate({ values: close, period: Math.min(Site.IND_MA_PERIOD, data.length) });
-                const stochOB = stoch.length > 0 ? (Math.max(stoch[stoch.length - 1].k, stoch[stoch.length - 1].d) > 80) : false;
-                const rsiOB = (rsi[rsi.length - 1] ?? 70) > 70;
-                const b = macdBull && bull && psarBull && (Site.IND_STOP_IF_OVERBOUGHT ? ((!stochOB) && (!rsiOB)) : true);
-                if (b) {
-                    buy = true;
-                    desc = "Bullish Buy"
-                    Log.flow(`CE > ${name} > Bullish Buy.`, 6);
-                }
-            }
-
-            const priceDir = compute1ExpDirection(close, dirLength);
-            const priceDir2 = compute2ExpDirection(close, dirLength);
-
-            CandlestickEngine.#multilayer(name, mint, buy, sell, desc, latestRate, ts)
-            const signals = CandlestickEngine.#getMLSignalHistory(mint);
-            CandlestickEngine.#collector(mint, latestRate, signals[signals.length - 1], buy, sell, stopLossPrice, desc);
-            // const { nbuy, nsell } = CandlestickEngine.#correctSignals(signals, buy, sell, desc);
-            // buy = nbuy;
-            // sell = nsell;
-            Log.flow(`CE > ${name} > ${desc} > SL: ${FFF(stopLossPrice)} | Mark: ${FFF(latestRate)}.`, 6);
-            if ((buy || sell) && ((Date.now() - (CandlestickEngine.#emitTS[mint] || 0)) >= Site.IND_SIGNAL_COOLDOWN_PERIOD_MS)) {
-                CandlestickEngine.#emitTS[mint] = Date.now();
-                SignalManager.entry(mint, buy, sell, desc, stopLossPrice);
-                if (buy) {
-                    if (!CSBuy) {
-                        CSBuy = require("./cs_buy");
-                    }
-                    CSBuy.entry(name, mint, desc, latestRate, stopLossPrice);
-                }
-            }
-        }
-        else {
-            Log.flow(`CE > ${name} > Not enough candlestick data (${data.length} / ${Site.IND_MIN_LENGTH}).`, 6);
-        }
+        });
     }
 
     /**
