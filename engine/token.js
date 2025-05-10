@@ -119,12 +119,6 @@ class TokenEngine {
     }
 
     /**
-     * Holds number of successful transactions
-     * @type {number}
-     */
-    static successfulTx = 0;
-
-    /**
      * Indicates if a token is being removed
      * @type {Record<string, boolean>}
      */
@@ -151,13 +145,13 @@ class TokenEngine {
                         if (TokenEngine.#tokens[mint]) {
                             if (TokenEngine.#tokens[mint].pnl_base) {
                                 if (Site.SIMULATION && TokenEngine.#tokens[mint].added_in_simulation) {
-                                    if (TokenEngine.realizedPnLSimulation.length > 0 ? (TokenEngine.realizedPnLSimulation[TokenEngine.realizedPnLSimulation.length - 1] != TokenEngine.#tokens[mint].pnl_base) : true) {
-                                        TokenEngine.realizedPnLSimulation.push({ pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp });
+                                    if (TokenEngine.realizedPnLSimulation.length > 0 ? (TokenEngine.realizedPnLSimulation[TokenEngine.realizedPnLSimulation.length - 1] != (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees)) : true) {
+                                        TokenEngine.realizedPnLSimulation.push({ pnl: (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees), ts: TokenEngine.#tokens[mint].reg_timestamp });
                                     }
                                 }
                                 else if ((!Site.SIMULATION) && (!TokenEngine.#tokens[mint].added_in_simulation)) {
-                                    if (TokenEngine.realizedPnLLive.length > 0 ? (TokenEngine.realizedPnLLive[TokenEngine.realizedPnLLive.length - 1] != TokenEngine.#tokens[mint].pnl_base) : true) {
-                                        TokenEngine.realizedPnLLive.push({ pnl: TokenEngine.#tokens[mint].pnl_base, ts: TokenEngine.#tokens[mint].reg_timestamp });
+                                    if (TokenEngine.realizedPnLLive.length > 0 ? (TokenEngine.realizedPnLLive[TokenEngine.realizedPnLLive.length - 1] != (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees)) : true) {
+                                        TokenEngine.realizedPnLLive.push({ pnl: (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees), ts: TokenEngine.#tokens[mint].reg_timestamp });
                                     }
                                 }
                             }
@@ -547,13 +541,14 @@ class TokenEngine {
                                 token.executed_peak_drops = [];
                                 token.executed_whale_exits = [];
                                 if (Site.SIMULATION && token.added_in_simulation && (token.pnl_base)) {
-                                    TokenEngine.realizedPnLSimulation.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                    TokenEngine.realizedPnLSimulation.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
                                 }
                                 else if ((!Site.SIMULATION) && (!token.added_in_simulation)) {
-                                    TokenEngine.realizedPnLLive.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                    TokenEngine.realizedPnLLive.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
                                 }
                                 token.max_pnl = 0;
                                 token.min_pnl = 0;
+                                token.fees = 0;
                                 token.pnl_base = 0;
                                 token.pnl = 0;
                                 // Add SL if configured
@@ -881,13 +876,14 @@ class TokenEngine {
                                     token.executed_peak_drops = [];
                                     token.executed_whale_exits = [];
                                     if (Site.SIMULATION && token.added_in_simulation && (token.pnl_base)) {
-                                        TokenEngine.realizedPnLSimulation.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                        TokenEngine.realizedPnLSimulation.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
                                     }
                                     else if ((!Site.SIMULATION) && (!token.added_in_simulation)) {
-                                        TokenEngine.realizedPnLLive.push({ pnl: token.pnl_base, ts: token.reg_timestamp });
+                                        TokenEngine.realizedPnLLive.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
                                     }
                                     token.max_pnl = 0;
                                     token.min_pnl = 0;
+                                    token.fees = 0;
                                     token.pnl_base = 0;
                                     token.pnl = 0;
                                     // Add SL if configured
@@ -1118,7 +1114,9 @@ class TokenEngine {
                                 }
                             }
                         }, Site.TRADE_RETRY_TIMEOUT_MS);
-                        TokenEngine.successfulTx++;
+                        if (TokenEngine.#tokens[mint]) {
+                            TokenEngine.#tokens[mint].fees += (0.000005);
+                        }
                         resolve(new Res(true, signature));
                     } else {
                         resolve(new Res(false, response.statusText));

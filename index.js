@@ -37,11 +37,6 @@ app.use(
     })
 );
 
-// app.use((req, res, next) => {
-//     console.log(req.method, req.url);
-//     next();
-// });
-
 app.post("/webhook", (req, res) => {
     const receivedToken = req.headers["x-telegram-bot-api-secret-token"];
     if (receivedToken != Site.TG_WH_SECRET_TOKEN) {
@@ -56,11 +51,6 @@ const startTime = getDateTime(Date.now());
 app.get("/", (req, res) => {
     res.type("txt").send(`${Site.TITLE} running since ${startTime} ${process.env.TZ || "UTC"}`);
 });
-
-// app.get("/what", (req, res) => {
-//     console.log("Link received", Date.now());
-//     res.redirect(Site.TG_BOT_URL);
-// });
 
 app.use((req, res, next) => {
     res.sendStatus(404);

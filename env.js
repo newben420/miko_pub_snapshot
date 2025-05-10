@@ -72,23 +72,21 @@ class Site {
     static AU_AUTO_WHALE_ENTRY = (process.env.AU_AUTO_WHALE_ENTRY || "").toLowerCase() == "true";
     static AU_AUTO_WHALE_EXIT = (process.env.AU_AUTO_WHALE_EXIT || "").toLowerCase() == "true";
 
-    static IND_MIN_LENGTH = parseInt(process.env.IND_MIN_LENGTH || "10") || 10;
-    static IND_MACD_FAST_PERIOD = parseInt(process.env.IND_MACD_FAST_PERIOD || "12") || 12;
-    static IND_MACD_SLOW_PERIOD = parseInt(process.env.IND_MACD_SLOW_PERIOD || "26") || 26;
-    static IND_MACD_SIGNAL_PERIOD = parseInt(process.env.IND_MACD_SIGNAL_PERIOD || "9") || 9;
-    static IND_MA_PERIOD = parseInt(process.env.IND_MA_PERIOD || "10") || 10;
-    static IND_PSAR_STEP = parseFloat(process.env.IND_PSAR_STEP || "0.02") || 0.02;
-    static IND_PSAR_MAX = parseFloat(process.env.IND_PSAR_MAX || "0.2") || 0.2;
-    static IND_STOCH_PERIOD = parseInt(process.env.IND_STOCH_PERIOD || "14") || 14;
-    static IND_STOCH_SIGNAL_PERIOD = parseInt(process.env.IND_STOCH_SIGNAL_PERIOD || "3") || 3;
-    static IND_DIR_LENGTH = parseInt(process.env.IND_DIR_LENGTH || "5") || 5;
-    static IND_TREND_SUPPORT_THRESHOLD_RATIO = parseFloat(process.env.IND_TREND_SUPPORT_THRESHOLD_RATIO || "0.5") || 0.5;
-    static IND_MAX_SIGNAL_HISTORY_LENGTH = parseInt(process.env.IND_MAX_SIGNAL_HISTORY_LENGTH || "5") || "5";
-    static IND_MACD_FOR_TREND = (process.env.IND_MACD_FOR_TREND || "").toLowerCase() == "true";
-    static IND_ONLY_STRONG_TREND = (process.env.IND_ONLY_STRONG_TREND || "").toLowerCase() == "true";
-    static IND_STOP_IF_OVERBOUGHT = (process.env.IND_STOP_IF_OVERBOUGHT || "").toLowerCase() == "true";
-    static IND_BULLISH_BUY = (process.env.IND_BULLISH_BUY || "").toLowerCase() == "true";
-    static IND_SIGNAL_COOLDOWN_PERIOD_MS = parseInt(process.env.IND_SIGNAL_COOLDOWN_PERIOD_MS || "0") || 60000;
+    static IND_CFG = Object.fromEntries((process.env.IND_CFG || "").replace(/[\n\r]/g, " ").split(" ").filter(x => x.length > 0).reduce((acc, val, i, arr) => i % 2 === 0 ? acc : acc.concat([[arr[i - 1], /^true$/i.test(val) ? true : /^false$/i.test(val) ? false : isNaN(val) ? val : val.includes(".") ? parseFloat(val) : parseInt(val)]]), []));
+
+    static STR_ENTRY_IND = process.env.STR_ENTRY_IND || "ICH";
+    static STR_TREND_IND = (process.env.STR_TREND_IND || "BLL").split(" ").filter(x => x.length == 3);
+    static STR_TREND_CV = parseFloat(process.env.STR_TREND_CV || "0") || 0;
+    static STR_TREND_FV = parseFloat(process.env.STR_TREND_FV || "0") || 0;
+    static STR_STG_FV = parseFloat(process.env.STR_STG_FV || "0") || 0;
+    static STR_OB_IND = (process.env.STR_OB_IND || "STC").split(" ").filter(x => x.length == 3);
+    static STR_OB_CV = parseFloat(process.env.STR_OB_CV || "0") || 0;
+    static STR_OB_FV = parseFloat(process.env.STR_OB_FV || "0") || 0;
+    static STR_REV_IND = (process.env.STR_REV_IND || "STR HGM BER EST TBC PIL BEC DCC").split(" ").filter(x => x.length == 3);
+    static STR_REV_CV = parseFloat(process.env.STR_REV_CV || "0") || 0;
+    static STR_REV_FV = parseFloat(process.env.STR_REV_FV || "0") || 0;
+    static STR_TSL_IND = process.env.STR_TSL_IND || "PSR";
+    static STR_VOL_RNG = (process.env.STR_VOL_RNG || "0 0").split(" ").filter(x => x.length > 0).map(x => parseFloat(x)).filter(x => (!Number.isNaN(x)));
 
     static DE_LOCAL_URL = process.env.DE_LOCAL_URL ?? "";
     static DE_LOCAL_PUB_KEY = keypair.publicKey.toBase58();
@@ -107,8 +105,7 @@ class Site {
 
     static EX_QUICKNODE = process.env.EX_QUICKNODE ?? "";
     static EX_RPC = process.env.EX_RPC ?? "";
-    static IND_ML_COLLECT_DATA = process.env.IND_ML_COLLECT_DATA == "true";
-    static IND_ML_DATA_PATH = Site.IND_ML_COLLECT_DATA ? (path.join(rootDir(), `ml_${process.env.IND_ML_DATA_PATH || "default"}.json`)) : "";
+    static IND_ML_DATA_PATH = Site.IND_ML_COLLECT_DATA ? (path.join(rootDir(), `ml_${Site.IND_CFG.MLDP || "default"}.json`)) : "";
 
 
     static IPFS_GATEWAY_HOST = process.env.IPFS_GATEWAY_HOST ?? "gateway.pinata.cloud";
@@ -162,7 +159,7 @@ class Site {
 
     static WH_MAX_WHALES = parseInt(process.env.WH_MAX_WHALES || "0") || 10;
     static WH_MAX_LOGS = parseInt(process.env.WH_MAX_LOGS || "0") || 30;
-    static TOKEN_MAX_BUYS = parseInt(process.env.TOKEN_MAX_BUYS || "0") || Infinity;
+    static TOKEN_MAX_BUYS = parseInt(process.env.TOKEN_MAX_BUYS || "0") || 100;
     static TURN_OFF_KIKO = (process.env.TURN_OFF_KIKO || "").toLowerCase() == "true";
 
     static CSBUY_USE = (process.env.CSBUY_USE || "").toLowerCase() == "true";
@@ -170,6 +167,8 @@ class Site {
     static CSBUY_PSAR_SL = Math.abs(parseInt(process.env.CSBUY_PSAR_SL || "0") || 0);
     static CSBUY_SELL = (process.env.CSBUY_SELL || "").split("|").filter(x => x.length > 0).map(x => x.split(" ").filter(y => y.length > 0).map(y => parseFloat(y)).filter(y => !Number.isNaN(y))).filter(x => x.length >= 2 && x.length <= 5).map(x => ({ pnl: x[0], perc: x[1], trailing: (x[2] || 0) > 0, minPnL: x[3] ?? Number.MIN_VALUE, maxPnL: x[4] || Number.MAX_VALUE })).filter(x => x.pnl != 0 && x.perc >= 1 && x.perc <= 100);
     static CSBUY_ALLOWED_SL_PERC_RANGE = (process.env.CSBUY_ALLOWED_SL_PERC_RANGE || "").split(" ").filter(x => x.length > 0).map(x => parseFloat(x)).filter(x => (!Number.isNaN(x)));
+    static CSBUY_REINVEST_PROFIT = (process.env.CSBUY_REINVEST_PROFIT || "").toLowerCase() == "true";
+    static CSBUY_MAX_CAPITAL = parseFloat(process.env.CSBUY_MAX_CAPITAL || "0") || Infinity;
     static COLLECTOR_MAX_FILE_SIZE_BYTES = parseInt(process.env.COLLECTOR_MAX_FILE_SIZE_BYTES || "0") || Infinity;
     static COLLECTOR_CHECKER_COOLDOWN_MS = parseInt(process.env.COLLECTOR_CHECKER_COOLDOWN_MS || "0") || 20000;
 
@@ -180,6 +179,7 @@ class Site {
     static SIM_INTERVAL_MS = parseInt(process.env.SIM_INTERVAL_MS || "0") || 60000;
     static SIM_EXECS = (process.env.SIM_EXECS || "").split(" ").filter(x => x.length > 0);
     static SIM_EXEC_USE_HIGH_FOR_RATE = (process.env.SIM_EXEC_USE_HIGH_FOR_RATE || "").toLowerCase() == "true";
+    static SIM_REPORT_INCLUDE_TRADES = (process.env.SIM_REPORT_INCLUDE_TRADES || "").toLowerCase() == "true";
 }
 
 module.exports = Site;

@@ -1,5 +1,6 @@
 const Site = require("../env");
 const FFF = require("../lib/fff");
+const floorToSigFigs = require("../lib/floor_sig_figs");
 const Log = require("../lib/log");
 const SolPrice = require("./sol_price");
 const TokenEngine = require("./token");
@@ -31,7 +32,9 @@ class CSBuy {
                     Log.flow(`CSB > ${name} > No available spot.`, 3);
                 }
                 else {
-                    const amt = Site.CSBUY_AMT_BASE;
+                    const profit = Math.max(0, (Site.SIMULATION ? TokenEngine.realizedPnLSimulation : TokenEngine.realizedPnLLive).map(x => x.pnl).reduce((a, b) => a + b, 0));
+                    const reinvestCapital = floorToSigFigs((profit / Site.TOKEN_MAX_BUYS) || 0) || 0;
+                    const amt = Math.min(Site.CSBUY_MAX_CAPITAL, (Site.CSBUY_AMT_BASE + (Site.CSBUY_REINVEST_PROFIT ? reinvestCapital : 0)));
                     if (amt > 0) {
                         token.CSB = true;
                         token.SLP = slPrice;

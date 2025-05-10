@@ -404,6 +404,7 @@ class Simulant {
                              */
                             let trades = [];
                             for (let i = (Site.SIM_ANALYSIS_ROWS - 1); i < csd.length; i++) {
+                                // let csdPart = csd.slice((i + 1 - Site.SIM_ANALYSIS_ROWS), (i + 1));
                                 let csdPart = csd.slice(0, (i + 1));
                                 if (csdPart.length > Site.SIM_ANALYSIS_ROWS_MAX) {
                                     csdPart = csdPart.slice(csdPart.length - Site.SIM_ANALYSIS_ROWS_MAX)
@@ -751,7 +752,7 @@ class Simulant {
                                 <td>${Site.BASE} ${FFF(rr.realizedPnLBase)}</td>
                             </tr>
                         </table>
-                        ${rr.trades.length > 0 ? `
+                        ${(rr.trades.length > 0 && Site.SIM_REPORT_INCLUDE_TRADES) ? `
                         <h4>Completed Trades</h4>
                         <table class="trade-tab">
                             <tr>

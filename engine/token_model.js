@@ -354,6 +354,12 @@ class Token {
     MP;
 
     /**
+     * Stores trading fees used
+     * @type {number}
+     */
+    fees;
+
+    /**
      * Entry reasons
      * @type {Set<string>}
      */
@@ -388,6 +394,7 @@ class Token {
         this.temp_high = 0;
         this.temp_low = 0;
         this.temp_volume = 0;
+        this.fees = 0;
         this.temp_open = 0;
         this.total_bought_base = 0;
         this.total_sold_base = 0;

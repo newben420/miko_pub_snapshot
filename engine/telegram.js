@@ -138,12 +138,13 @@ class TelegramEngine {
                 inn.push([]);
                 let kb = inn[inn.length - 1];
                 m += `${index}. *${token.name}*\n`;
-                m += `ℹ️ ${token.source} ‼️ ${token.rec_buy ? "B" : "DNB"} ‼️ ${token.rec_sell ? "S" : "DNS"} 🕯 ${token.price_history.length} \\/ ${Site.COL_MAX_LENGTH}\n`;
+                m += `ℹ️ ${token.source} 🕯 ${FFF(token.price_history.length)} \\/ ${FFF(Site.COL_MAX_LENGTH)}\n`;
+                // m += `ℹ️ ${token.source} ‼️ ${token.rec_buy ? "B" : "DNB"} ‼️ ${token.rec_sell ? "S" : "DNS"} 🕯 ${token.price_history.length} \\/ ${Site.COL_MAX_LENGTH}\n`;
                 m += `⏱️ ${getTimeElapsed(token.reg_timestamp, Date.now())} ⏳ ${getTimeElapsed(token.last_updated, Date.now())}\n`;
                 m += `P 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
-                m += `MM P 💰 ${Site.BASE} ${FFF(token.least_price)} => ${FFF(token.peak_price)} \\(${formatNumber((((token.peak_price - token.least_price) / token.least_price * 100) || 0).toFixed(2))}%\\)\n`;
+                m += `MM P 💰 ${Site.BASE} ${FFF(token.least_price)} ➡️ ${FFF(token.peak_price)} \\(${formatNumber((((token.peak_price - token.least_price) / token.least_price * 100) || 0).toFixed(2))}%\\)\n`;
                 m += `MC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\n`;
-                m += `MM MC 📈 ${Site.BASE} ${FFF(token.min_marketcap)} => ${FFF(token.max_marketcap)} \\(USD ${FFF(token.min_marketcap * SolPrice.get())} => ${FFF(token.max_marketcap * SolPrice.get())}\\)\n`;
+                m += `MM MC 📈 ${Site.BASE} ${FFF(token.min_marketcap)} ➡️ ${FFF(token.max_marketcap)} \\(USD ${FFF(token.min_marketcap * SolPrice.get())} ➡️ ${FFF(token.max_marketcap * SolPrice.get())}\\)\n`;
                 m += `Amt 💰 ${token.symbol} *${FFF(token.amount_held)}* \\(${Site.BASE} ${FFF(token.amount_held * token.current_price)} | USD ${FFF(token.amount_held * token.current_price * SolPrice.get())}\\)\n`;
                 if (token.entry_reasons.size > 0) {
                     m += `Entry Reasons 🔵 ${Array.from(token.entry_reasons).map(r => `\`${r}\``).join(" | ")}\n`;
@@ -153,7 +154,7 @@ class TelegramEngine {
                 }
                 m += `PnL 💰 ${Site.BASE} ${FFF(token.pnl_base)} \\(USD ${FFF(token.pnl_base * SolPrice.get())} | *${token.pnl.toFixed(2)}%*\\)\n`;
                 if (token.pnl || token.min_pnl || token.max_pnl) {
-                    m += `MM PnL 💰 ${token.min_pnl.toFixed(2)}% => ${token.max_pnl.toFixed(2)}% \n`;
+                    m += `MM PnL 💰 ${token.min_pnl.toFixed(2)}% ➡️ ${token.max_pnl.toFixed(2)}% \n`;
                 }
                 if (Site.COL_MULTIPLES_MS_ARR.length > 0 && token.price_history.length > 0) {
                     for (let j = 0; j < Site.COL_MULTIPLES_MS_ARR.length; j++) {
@@ -372,7 +373,7 @@ class TelegramEngine {
                     description: "Blacklist"
                 },
 
-            ].concat(Site.IND_ML_COLLECT_DATA ? [
+            ].concat(Site.IND_CFG.MCLD ? [
                 {
                     command: "/collect",
                     description: "Collect"
@@ -393,11 +394,9 @@ class TelegramEngine {
                         arr.sort((a, b) => a.ts - b.ts);
                         arr = arr.map(x => x.pnl);
                         let lPnL = arr.reduce((a, b) => a + b, 0);
-                        let nPnL = lPnL - (Site.SIMULATION ? 0 : (TokenEngine.successfulTx * 0.000005));
                         let rPnL = (Site.SIMULATION ? TokenEngine.realizedPnLSimulation : TokenEngine.realizedPnLLive).map(x => x.pnl).reduce((a, b) => a + b, 0);
                         let m = `*${Site.TITLE}* says hi 👋`;
-                        m += `\n\n*PnL* 💰 ${Site.BASE} ${FFF(lPnL)} \\(USD ${FFF(lPnL * SolPrice.get())}\\)\n`;
-                        m += `*Net PnL* 💰 ${Site.BASE} ${FFF(nPnL)} \\(USD ${FFF(nPnL * SolPrice.get())}\\)\n`;
+                        m += `\n\n*Live PnL* 💰 ${Site.BASE} ${FFF(lPnL)} \\(USD ${FFF(lPnL * SolPrice.get())}\\)\n`;
                         m += `*Realized PnL* 💰 ${Site.BASE} ${FFF(rPnL)} \\(USD ${FFF(rPnL * SolPrice.get())}\\)\n`;
                         m += `*Market Condition* ${computeArithmeticDirectionMod(arr, 5)}`;
                         TelegramEngine.sendMessage(m);
