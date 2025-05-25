@@ -13,6 +13,8 @@ let TelegramEngine = null;
 let WhaleEngine = null;
 let CandlestickEngine = null;
 
+let SocketEngine = null;
+
 const METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
 function getMetadataPDA(mint) {
@@ -164,6 +166,12 @@ class TokenEngine {
                         delete TokenEngine.#pdLastExec[mint];
                         delete TokenEngine.#isBeingRemoved[mint];
                         CandlestickEngine.removeToken(mint);
+                        if (Site.UI) {
+                            if (!SocketEngine) {
+                                SocketEngine = require("./socket");
+                            }
+                            SocketEngine.sendTokens(null, mint, true);
+                        }
                     });
                 } catch (error) {
                     Log.dev(error);
@@ -177,6 +185,9 @@ class TokenEngine {
                     resolve("");
                 }
             }
+            else{
+                resolve("");
+            }
         })
     }
 
@@ -189,7 +200,9 @@ class TokenEngine {
             method: "subscribeTokenTrade",
             keys: [mint]
         }
-        TokenEngine.#ws.send(JSON.stringify(payload));
+        if(TokenEngine.#ws){
+            TokenEngine.#ws.send(JSON.stringify(payload));
+        }
     }
 
     /**
@@ -263,6 +276,7 @@ class TokenEngine {
                                                 parseFloat(x.low) || 0,
                                                 parseFloat(x.close) || 0,
                                                 parseFloat(x.volume) || 0,
+                                                parseInt(x.timestamp) || 0,
                                             ))
                                         }
                                         else {
@@ -273,6 +287,7 @@ class TokenEngine {
                                                     parseFloat(x.low) || 0,
                                                     parseFloat(x.close) || 0,
                                                     parseFloat(x.volume) || 0,
+                                                    (parseInt(x.timestamp) || 0) * 1000,
                                                 )
                                             );
                                         }
@@ -289,6 +304,20 @@ class TokenEngine {
                                 }
                             });
                         }
+                    }
+                    if (Site.UI) {
+                        if (!SocketEngine) {
+                            SocketEngine = require("./socket");
+                        }
+                        SocketEngine.sendTokens(null, {
+                            [mint]: {
+                                name: TokenEngine.#tokens[mint].name,
+                                symbol: TokenEngine.#tokens[mint].symbol,
+                                mint: TokenEngine.#tokens[mint].mint,
+                                amount: TokenEngine.#tokens[mint].amount_held || 0,
+                                pnl: TokenEngine.#tokens[mint].pnl || 0,
+                            }
+                        }, false);
                     }
                     resolve(true);
                 }
@@ -368,8 +397,15 @@ class TokenEngine {
                     }
                     const token = TokenEngine.#tokens[mint];
                     if (token) {
-                        TelegramEngine.sendMessage(`🚀 ${token.name} \\(${token.symbol}\\) has received its first update and is now available for trading`);
+                        const msg = `🚀 ${token.name} \\(${token.symbol}\\) has received its first update and is now available for trading`;
+                        TelegramEngine.sendMessage(msg);
                         TokenEngine.#tokens[mint].first_signal = true;
+                        if (Site.UI) {
+                            if (!SocketEngine) {
+                                SocketEngine = require("./socket");
+                            }
+                            SocketEngine.sendNote(msg);
+                        }
                     }
                 }
                 if (rate > TokenEngine.#tokens[mint].peak_price || TokenEngine.#tokens[mint].peak_price === 0) {
@@ -440,16 +476,26 @@ class TokenEngine {
                                         if (!TelegramEngine) {
                                             TelegramEngine = require("./telegram");
                                         }
+                                        let msg = '';
                                         if (Site.SIMULATION) {
                                             if (order.type == "buy") {
-                                                TelegramEngine.sendMessage(`✅ *BUY*\n\nLimit Swapped ${Site.BASE} ${FFF(order.amount)} \\(USD ${FFF(order.amount * SolPrice.get())}\\) to ${TokenEngine.#tokens[mint].symbol} ${FFF(done)}\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`);
+                                                msg = `✅ *BUY*\n\nLimit Swapped ${Site.BASE} ${FFF(order.amount)} \\(USD ${FFF(order.amount * SolPrice.get())}\\) to ${TokenEngine.#tokens[mint].symbol} ${FFF(done)}\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`;
+                                                TelegramEngine.sendMessage(msg);
                                             }
                                             else {
-                                                TelegramEngine.sendMessage(`✅ *SELL*\n\nLimit Swapped ${TokenEngine.#tokens[mint].symbol} ${FFF(((order.amount / 100) * allocation) || 0)} \\(${order.amount}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`);
+                                                msg = `✅ *SELL*\n\nLimit Swapped ${TokenEngine.#tokens[mint].symbol} ${FFF(((order.amount / 100) * allocation) || 0)} \\(${order.amount}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`;
+                                                TelegramEngine.sendMessage(msg);
                                             }
                                         }
                                         else {
-                                            TelegramEngine.sendMessage(`✅ *${order.type.toUpperCase()}*\n\nLimit order executed on ${TokenEngine.#tokens[mint].symbol}\n\n🪧 \`${done}\``);
+                                            msg = `✅ *${order.type.toUpperCase()}*\n\nLimit order executed on ${TokenEngine.#tokens[mint].symbol}\n\n🪧 \`${done}\``;
+                                            TelegramEngine.sendMessage(msg);
+                                        }
+                                        if (Site.UI && msg) {
+                                            if (!SocketEngine) {
+                                                SocketEngine = require("./socket");
+                                            }
+                                            SocketEngine.sendNote(msg);
                                         }
                                         TokenEngine.#tokens[mint].pending_orders.splice(i, 1);
                                         i--;
@@ -466,16 +512,26 @@ class TokenEngine {
                                         if (!TelegramEngine) {
                                             TelegramEngine = require("./telegram");
                                         }
+                                        let msg = '';
                                         if (Site.SIMULATION) {
                                             if (order.type == "buy") {
-                                                TelegramEngine.sendMessage(`✅ *BUY*\n\nLimit swapped ${Site.BASE} ${FFF(order.amount)} \\(USD ${FFF(order.amount * SolPrice.get())}\\) to ${TokenEngine.#tokens[mint].symbol} ${FFF(done)}\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`);
+                                                msg = `✅ *BUY*\n\nLimit swapped ${Site.BASE} ${FFF(order.amount)} \\(USD ${FFF(order.amount * SolPrice.get())}\\) to ${TokenEngine.#tokens[mint].symbol} ${FFF(done)}\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`;
+                                                TelegramEngine.sendMessage(msg);
                                             }
                                             else {
-                                                TelegramEngine.sendMessage(`✅ *SELL*\n\nLimit swapped ${TokenEngine.#tokens[mint].symbol} ${FFF(((order.amount / 100) * allocation) || 0)} \\(${order.amount}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`);
+                                                msg = `✅ *SELL*\n\nLimit swapped ${TokenEngine.#tokens[mint].symbol} ${FFF(((order.amount / 100) * allocation) || 0)} \\(${order.amount}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`;
+                                                TelegramEngine.sendMessage(msg);
                                             }
                                         }
                                         else {
-                                            TelegramEngine.sendMessage(`✅ *${order.type.toUpperCase()}*\n\nLimit order executed on ${TokenEngine.#tokens[mint].symbol}\n\n🪧 \`${done}\``);
+                                            msg = `✅ *${order.type.toUpperCase()}*\n\nLimit order executed on ${TokenEngine.#tokens[mint].symbol}\n\n🪧 \`${done}\``;
+                                            TelegramEngine.sendMessage(msg);
+                                        }
+                                        if (Site.UI && msg) {
+                                            if (!SocketEngine) {
+                                                SocketEngine = require("./socket");
+                                            }
+                                            SocketEngine.sendNote(msg);
                                         }
                                         TokenEngine.#tokens[mint].pending_orders.splice(i, 1);
                                         i--;
@@ -514,7 +570,14 @@ class TokenEngine {
                         const amt = message.solAmount;
                         const bought = message.tokenAmount;
                         Log.flow(`Buy > ${token.symbol} > ${Site.BASE}% > ${FFF(amt)} > Confirmed.`, 3);
-                        TelegramEngine.sendMessage(`✅ *BUY*\n\nSwapped ${Site.BASE} ${FFF(amt)} \\(USD ${FFF(amt * SolPrice.get())}\\) to ${token.symbol} ${FFF(bought)}\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
+                        let msg = `✅ *BUY*\n\nSwapped ${Site.BASE} ${FFF(amt)} \\(USD ${FFF(amt * SolPrice.get())}\\) to ${token.symbol} ${FFF(bought)}\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
+                        TelegramEngine.sendMessage(msg);
+                        if (Site.UI && msg) {
+                            if (!SocketEngine) {
+                                SocketEngine = require("./socket");
+                            }
+                            SocketEngine.sendNote(msg);
+                        }
                         if (!TokenEngine.#tokens[mint].bought_once) {
                             if (TokenEngine.autoSell && TokenEngine.#tokens[mint].source == "Kiko") {
                                 let buyMC = Site.BASE_DENOMINATED ? TokenEngine.#tokens[mint].current_marketcap : (TokenEngine.#tokens[mint].current_marketcap * SolPrice.get());
@@ -611,7 +674,14 @@ class TokenEngine {
                             token.executed_whale_exits = [];
                         }
                         Log.flow(`Sell > ${token.symbol} > ${perc}% > PnL ${FFF(token.pnl)}% > Confirmed.`, 3);
-                        TelegramEngine.sendMessage(`✅ *SELL*\n\nSwapped ${token.symbol} ${FFF(message.tokenAmount)} \\(${perc}%\\) to ${Site.BASE} ${FFF(sold)} \\(USD ${FFF(sold * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
+                        let msg = `✅ *SELL*\n\nSwapped ${token.symbol} ${FFF(message.tokenAmount)} \\(${perc}%\\) to ${Site.BASE} ${FFF(sold)} \\(USD ${FFF(sold * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
+                        TelegramEngine.sendMessage(msg);
+                        if (Site.UI && msg) {
+                            if (!SocketEngine) {
+                                SocketEngine = require("./socket");
+                            }
+                            SocketEngine.sendNote(msg);
+                        }
                     }
                 }
             }
@@ -634,16 +704,57 @@ class TokenEngine {
                             if (!TelegramEngine) {
                                 TelegramEngine = require("./telegram");
                             }
+                            let msg = ``;
                             if (Site.SIMULATION) {
-                                TelegramEngine.sendMessage(`✅ *SELL*\n\nPeak Drop swapped ${TokenEngine.#tokens[mint].symbol} ${FFF(((pd.sellPerc / 100) * allocation) || 0)} \\(${pd.sellPerc}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`);
+                                msg = `✅ *SELL*\n\nPeak Drop swapped ${TokenEngine.#tokens[mint].symbol} ${FFF(((pd.sellPerc / 100) * allocation) || 0)} \\(${pd.sellPerc}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_marketcap)} \\(USD ${FFF(TokenEngine.#tokens[mint].current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(TokenEngine.#tokens[mint].current_price)}\n`;
+                                TelegramEngine.sendMessage(msg);
                             }
                             else {
-                                TelegramEngine.sendMessage(`✅ *SELL*\n\nPeak Drop executed on ${TokenEngine.#tokens[mint].symbol}\n\n🪧 \`${done}\``);
+                                msg = `✅ *SELL*\n\nPeak Drop executed on ${TokenEngine.#tokens[mint].symbol}\n\n🪧 \`${done}\``;
+                                TelegramEngine.sendMessage(msg);
+                            }
+                            if (Site.UI && msg) {
+                                if (!SocketEngine) {
+                                    SocketEngine = require("./socket");
+                                }
+                                SocketEngine.sendNote(msg);
                             }
                             TokenEngine.#tokens[mint].executed_peak_drops.push(i);
                             break;
                         }
                     }
+                }
+            }
+
+            if (Site.UI) {
+                if (!SocketEngine) {
+                    SocketEngine = require("./socket");
+                }
+                SocketEngine.sendToken(mint, {
+                    current_price: TokenEngine.#tokens[mint].current_price,
+                    current_marketcap: TokenEngine.#tokens[mint].current_marketcap,
+                    last_updated: TokenEngine.#tokens[mint].last_updated,
+                    amount_held: TokenEngine.#tokens[mint].amount_held,
+                    pending_orders: TokenEngine.#tokens[mint].pending_orders,
+                    max_marketcap: TokenEngine.#tokens[mint].max_marketcap,
+                    min_marketcap: TokenEngine.#tokens[mint].min_marketcap,
+                    peak_price: TokenEngine.#tokens[mint].peak_price,
+                    least_price: TokenEngine.#tokens[mint].least_price,
+                    pnl_base: TokenEngine.#tokens[mint].pnl_base,
+                    pnl: TokenEngine.#tokens[mint].pnl,
+                    max_pnl: TokenEngine.#tokens[mint].max_pnl,
+                    min_pnl: TokenEngine.#tokens[mint].min_pnl,
+                    exit_reasons: TokenEngine.#tokens[mint].exit_reasons,
+                    entry_reasons: TokenEngine.#tokens[mint].entry_reasons,
+                });
+
+                if ((TokenEngine.#tokens[mint].amount_held != 0 || TokenEngine.#tokens[mint].pnl != 0)) {
+                    SocketEngine.sendTokens(null, {
+                        [mint]: {
+                            amount: TokenEngine.#tokens[mint].amount_held || 0,
+                            pnl: TokenEngine.#tokens[mint].pnl || 0,
+                        }
+                    }, false);
                 }
             }
 
@@ -792,7 +903,14 @@ class TokenEngine {
                                         if (!TelegramEngine) {
                                             TelegramEngine = require("./telegram");
                                         }
-                                        TelegramEngine.sendMessage(`✅ *SELL*\n\nSold off ${(TokenEngine.#tokens[mint] || {}).name} \\(${(TokenEngine.#tokens[mint] || {}).symbol}\\)\n\n\`${mint}\`\n\n\`${signature}\``);
+                                        let msg = `✅ *SELL*\n\nSold off ${(TokenEngine.#tokens[mint] || {}).name} \\(${(TokenEngine.#tokens[mint] || {}).symbol}\\)\n\n\`${mint}\`\n\n\`${signature}\``;
+                                        TelegramEngine.sendMessage(msg);
+                                        if (Site.UI && msg) {
+                                            if (!SocketEngine) {
+                                                SocketEngine = require("./socket");
+                                            }
+                                            SocketEngine.sendNote(msg);
+                                        }
                                     } catch (error) {
                                         Log.dev(error);
                                     }
@@ -846,7 +964,7 @@ class TokenEngine {
                         WhaleEngine = require("./whale").WhaleEngine;
                     }
                     if (Site.SIMULATION) {
-                        if (token.current_price && WhaleEngine.enter(mint)) {
+                        if (token.current_price && (reason != "Manual" ? WhaleEngine.enter(mint) : true)) {
                             const amtBought = amt / token.current_price;
                             token.amount_held += amtBought;
                             token.total_bought_base += amt;
@@ -1105,7 +1223,14 @@ class TokenEngine {
                                                 if (!TelegramEngine) {
                                                     TelegramEngine = require("./telegram");
                                                 }
-                                                TelegramEngine.sendMessage(`↩️ ${action.toUpperCase()} RETRY\n\n*${token.name} \\(${token.symbol}\\)*\nAmount 💰 ${action == "buy" ? Site.BASE : ""} ${amt}\nRetries Left 👍 ${(retries - 1)}\nSignature 🪧 \`${retried.message}\``);
+                                                let msg = `↩️ ${action.toUpperCase()} RETRY\n\n*${token.name} \\(${token.symbol}\\)*\nAmount 💰 ${action == "buy" ? Site.BASE : ""} ${amt}\nRetries Left 👍 ${(retries - 1)}\nSignature 🪧 \`${retried.message}\``;
+                                                TelegramEngine.sendMessage(msg);
+                                                if (Site.UI && msg) {
+                                                    if (!SocketEngine) {
+                                                        SocketEngine = require("./socket");
+                                                    }
+                                                    SocketEngine.sendNote(msg);
+                                                }
                                             } catch (error) {
                                                 Log.dev(error)
                                             }

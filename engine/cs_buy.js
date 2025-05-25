@@ -5,6 +5,7 @@ const Log = require("../lib/log");
 const SolPrice = require("./sol_price");
 const TokenEngine = require("./token");
 let TelegramEngine = null;
+let SocketEngine = null;
 
 /**
  * This class is for handling automated buying of telegram added tokens using candlestick analysis.
@@ -22,7 +23,7 @@ class CSBuy {
      * @param {number} markPrice 
      * @param {number} slPrice 
      */
-    static entry = async (name, mint, description, markPrice, slPrice,) => {
+    static entry = async (name, mint, description, markPrice, slPrice) => {
         const token = TokenEngine.getToken(mint);
         if (token && CSBuy.activated) {
             if (token.source == "Telegram" && token.amount_held <= 0) {
@@ -47,10 +48,24 @@ class CSBuy {
 
                             if (Site.SIMULATION) {
                                 const token = TokenEngine.getToken(mint) || {};
-                                TelegramEngine.sendMessage(`✅ *CSBUY*\n\nSwapped ${Site.BASE} ${FFF(amt)} \\(USD ${FFF(amt * SolPrice.get())}\\) to ${token.symbol} ${FFF(bought)}\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
+                                const msg = `✅ *CSBUY*\n\nSwapped ${Site.BASE} ${FFF(amt)} \\(USD ${FFF(amt * SolPrice.get())}\\) to ${token.symbol} ${FFF(bought)}\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
+                                TelegramEngine.sendMessage(msg);
+                                if(Site.UI){
+                                    if(!SocketEngine){
+                                        SocketEngine = require("./socket");
+                                    }
+                                    SocketEngine.sendNote(msg);
+                                }
                             }
                             else {
-                                TelegramEngine.sendMessage(`✅ *CSBUY*\n\nBuy operation completed \\(${Site.BASE} ${amt}\\)\n\n🪧 \`${bought}\``);
+                                const msg = `✅ *CSBUY*\n\nBuy operation completed \\(${Site.BASE} ${amt}\\)\n\n🪧 \`${bought}\``;
+                                TelegramEngine.sendMessage(msg);
+                                if(Site.UI){
+                                    if(!SocketEngine){
+                                        SocketEngine = require("./socket");
+                                    }
+                                    SocketEngine.sendNote(msg);
+                                }
                             }
                         }
                         else {

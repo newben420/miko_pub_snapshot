@@ -1,0 +1,134 @@
+{
+    "YES": "Yes",
+    "NO": "No",
+    "ON": "On",
+    "OFF": "Off",
+    "OK": "OK! Got it",
+    "SAVE": "Save",
+    "NOTHING": "Nothing to show for now.",
+    "INP_ERR": "There is something wrong with your input.",
+    "CANCEL": "Cancel",
+    "DELETE": "Delete",
+    "UPDATE": "Update",
+    "SUBMIT": "Submit",
+    "CHANGE_PREF_LANGUAGE": "Change Preferred Language",
+    "ACCESS_DENIED": "Access denied.",
+    "SURE": "Are you sure?",
+    "FAILED": "Operation failed.",
+    "SUCCESS": "Operation successful.",
+    "SERVER": "A server error was encountered. Please try again.",
+    "UNKNOWN": "An unknown response was received from interface.",
+    "INTERFACE": "A connection could not be established with the interface.",
+    "ASSETS": "Pairs",
+    "ASSET": "Pair",
+    "WRONG_REQUEST": "Invalid request.",
+    "BASE_TOKEN": "Base Token",
+    "QUOTE_TOKEN": "Quote Token",
+    "STATUS": "Status",
+    "APP": {
+        "TAB": {
+            "T1": "Home",
+            "T2": "Kiko",
+            "T3": "Settings"
+        },
+        "PREF": {
+            "AUTO": {
+                "TITLE": "Automation",
+                "SIM": "Simulation",
+                "CSB": "CS Buy",
+                "AUB": "Auto Buy",
+                "AUS": "Auto Sell",
+                "PKD": "Peak Drop",
+                "ACT": "Accept Token",
+                "BAL": "Buy Alert",
+                "SAL": "Sell Alert",
+                "WEN": "Whale Entry",
+                "WEX": "Whale Exit"
+            },
+            "UI": {
+                "TITLE": "Customization",
+                "DARK": "Dark Mode",
+                "LANG": "Language",
+                "SART": "Server Alerts"
+            }
+        },
+        "OBS": {
+            "TITLE": "Kiko Tokens",
+            "NO_AUDIT": "No audited tokens to show for now.",
+            "ALL": "all",
+            "CUR": "current",
+            "GRA": "graduated",
+            "BLO": "blocked",
+            "AUD": "audited"
+        },
+        "REC": {
+            "SUCC": "Recovery succeeded.",
+            "ERR": "Recovery failed"
+        },
+        "WAL": {
+            "TITLE": "My Wallet",
+            "ERR": "Failed to get wallet balance.",
+            "BAL": "Balance",
+            "ADD": "Address"
+        },
+        "STA": {
+            "TITLE": "My Stats",
+            "ERR": "Failed to get statistics.",
+            "LIVE": "Live PnL",
+            "REAL": "Realized PnL",
+            "MARK": "Market Condition"
+        },
+        "TOKENS": {
+            "TITLE": "Tokens",
+            "NONE": "No tokens added yet.",
+            "INS": "Enter a valid mint address.",
+            "ADD": "Add Token",
+            "LABEL": "Mint",
+            "ADD_ERR": "Token could not be added.",
+            "ADD_SUCC": "{{name}} is now being monitored.",
+            "OPEN_ERR": "Could not load token.",
+            "PRICE_HIST": "Price History",
+            "NE_DATA": "Not enough data.",
+            "REM": "Remarks",
+            "AMT": "Amount",
+            "PNL": "PnL",
+            "MAX": "Max",
+            "MIN": "Min",
+            "BUY": "Buy",
+            "SELL": "Sell",
+            "PLO": "Pending Limit Orders",
+            "PRICE": "Price",
+            "MC": "Current, Max & Min Marketcap",
+            "RG_TS": "Reg. Timestamp",
+            "LU_TS": "Last Updated",
+            "CRC": "Chart Rows Count",
+            "WL": "Live Whale Log",
+            "DESC": "Description"
+        },
+        "LOGOUT": {
+            "TITLE": "Sign Out",
+            "CONFIRM": "Are you sure you want to sign out?"
+        },
+        "ACT": {
+            "WAL": "Wallet",
+            "REL": "Reload",
+            "REC": "Recover",
+            "STA": "Stats"
+        },
+        "LIM": {
+            "CRT": "Create Limit Order",
+            "BUY": "Buy",
+            "SELL": "Sell",
+            "MC": "Limit",
+            "MC_ERR": "Limit is required.",
+            "TRAIL": "Trailing",
+            "PL": "% Loss",
+            "PL_ERR": "Enter a valid % Loss.",
+            "ERR": "A valid input is required",
+            "MIND": "Min Duration (MS)",
+            "MINPNL": "Min PnL (%)",
+            "MAXD": "Max Duration (MS)",
+            "MAXPNL": "Max PnL (%)"
+        }
+    }
+}

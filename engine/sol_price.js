@@ -5,6 +5,8 @@ const Log = require("../lib/log");
 const { get } = require("../lib/make_request");
 const getTimeElapsed = require("../lib/get_time_elapsed");
 
+let SocketEngine = null;
+
 /**
  * Manages SOL/USD rate.
  */
@@ -26,6 +28,12 @@ class SolPrice {
                     if (res.message.solPrice !== SolPrice.#current) {
                         SolPrice.#current = res.message.solPrice;
                         Log.flow(`SolPrice > Updated to $${SolPrice.#current}. Next in ${getTimeElapsed(Date.now(), (Date.now() + Site.SOLPRICE_INTERVAL_MS))}.`, 2);
+                        if(Site.UI){
+                            if(!SocketEngine){
+                                SocketEngine = require("./socket");
+                            }
+                            SocketEngine.sendSolPrice();
+                        }
                     }
                 }
                 setTimeout(() => {
@@ -35,6 +43,12 @@ class SolPrice {
         }
         else{
             Log.flow(`SolPrice > Kept as $${SolPrice.#current} in development mode. Next in ${getTimeElapsed(Date.now(), (Date.now() + Site.SOLPRICE_INTERVAL_MS))}.`, 2);
+            if(Site.UI){
+                if(!SocketEngine){
+                    SocketEngine = require("./socket");
+                }
+                SocketEngine.sendSolPrice();
+            }
             setTimeout(() => {
                 SolPrice.#run();
             }, Site.SOLPRICE_INTERVAL_MS);

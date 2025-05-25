@@ -3,16 +3,34 @@ const fs = Site.IND_CFG.MCLD ? require("fs") : {};
 const booleanThreshold = require("../lib/boolean_threshold");
 const { compute1ExpDirection, compute2ExpDirection, computeArithmeticDirection, clearDirection } = require("../lib/direction");
 const {
-    MACD, PSAR, Stochastic, bullish, bearish, VWAP, ADL, ATR, AwesomeOscillator, ROC, ForceIndex,
-    TRIX, ADX, BollingerBands, CCI, MFI, RSI, abandonedbaby, bearishengulfingpattern, darkcloudcover,
-    piercingline, eveningstar, eveningdojistar, threeblackcrows, gravestonedoji, bearishharami, bearishmarubozu,
-    tweezertop, hangingman, shootingstar, bearishharamicross, morningstar, threewhitesoldiers, bullishengulfingpattern,
-    morningdojistar, hammerpattern, dragonflydoji, bullishharami, bullishmarubozu, bullishharamicross, tweezerbottom,
-    EMA,
+    MACD, PSAR, Stochastic, bullish, bearish, VWAP, ADL, ATR, AwesomeOscillator,
+    TRIX, ADX, CCI, MFI, RSI, darkcloudcover,
+    piercingline, eveningstar, threeblackcrows,
+    tweezertop, hangingman, shootingstar,
     IchimokuCloud,
-    SMA,
-    WMA,
     StochasticRSI,
+    SMA,
+    EMA,
+    WMA,
+    threewhitesoldiers,
+    morningstar,
+    hammerpattern,
+    tweezerbottom,
+    abandonedbaby,
+    bullishengulfingpattern,
+    morningdojistar,
+    dragonflydoji,
+    bullishharami,
+    bullishmarubozu,
+    bullishharamicross,
+    bearishengulfingpattern,
+    eveningdojistar,
+    gravestonedoji,
+    bearishharami,
+    bearishmarubozu,
+    bearishharamicross,
+    KST,
+    WEMA,
 } = require("technicalindicators");
 const Log = require("../lib/log");
 const SignalManager = require("./signal_manager");
@@ -82,14 +100,21 @@ class CandlestickEngine {
      * Holds previous entry values per token
      * @type {Record<string, boolean[]>}
      */
-    static #isEntry = {};
+    static #isEntryBull = {};
+
+    /**
+     * Holds previous entry values per token
+     * @type {Record<string, boolean[]>}
+     */
+    static #isEntryBear = {};
 
     /**
      * Called when a token is deleted from token engine so its data can be cleared here as well
      * @param {string} mint 
      */
     static removeToken = (mint) => {
-        delete CandlestickEngine.#isEntry[mint];
+        delete CandlestickEngine.#isEntryBull[mint];
+        delete CandlestickEngine.#isEntryBear[mint];
         delete CandlestickEngine.#latestDecisions[mint];
         delete CandlestickEngine.#signals[mint];
         delete CandlestickEngine.#signalHistory[mint];
@@ -152,19 +177,39 @@ class CandlestickEngine {
                     ICH_BEAR: null,
                     ICH_SL: null,
                     BLL_BULL: null,
+                    BLL_BEAR: null,
+                    BLL_BEAR: null,
+                    KST_BULL: null,
+                    KST_BEAR: null,
                     SMA_BULL: null,
+                    SMA_BEAR: null,
                     EMA_BULL: null,
+                    EMA_BEAR: null,
                     WMA_BULL: null,
+                    WMA_BEAR: null,
                     VWP_BULL: null,
+                    VWP_BEAR: null,
                     AOS_BULL: null,
+                    AOS_BEAR: null,
                     TRX_BULL: null,
+                    TRX_BEAR: null,
+                    EXP_BULL: null,
+                    EXP_BEAR: null,
                     STRONG: null,
                     STC_OB: null,
+                    STC_OS: null,
                     RSI_OB: null,
+                    RSI_OS: null,
                     CCI_OB: null,
+                    CCI_OS: null,
                     MFI_OB: null,
+                    MFI_OS: null,
                     BBS_OB: null,
+                    BBS_OS: null,
                     SRS_OB: null,
+                    SRS_OS: null,
+                    SRS_BULL: null,
+                    SRS_BEAR: null,
                     STR: null,
                     HGM: null,
                     BAR: null,
@@ -173,8 +218,25 @@ class CandlestickEngine {
                     PIL: null,
                     DCC: null,
                     TTP: null,
+                    TWS: null,
+                    MST: null,
+                    HMR: null,
+                    TBT: null,
+                    ABB: null,
+                    BEP: null,
+                    EDS: null,
+                    GSD: null,
+                    BRH: null,
+                    BRM: null,
+                    BHC: null,
+                    BLE: null,
+                    MDS: null,
+                    DFD: null,
+                    BLH: null,
+                    BLM: null,
+                    BLC: null,
                     ATR: null,
-                    ENTRY: false,
+                    ENTRY: null,
                 };
 
                 const ensureInd = {
@@ -198,6 +260,27 @@ class CandlestickEngine {
                             cache.MCD = true;
                             cache.MCD_BULL = macdBull;
                             cache.MCD_BEAR = macdBear;
+                        }
+                    },
+                    SRS: () => {
+                        if (cache.SRS_OB === null) {
+                            const srsi = StochasticRSI.calculate({
+                                dPeriod: Site.IND_CFG.STC_SP ?? 3,
+                                kPeriod: Site.IND_CFG.STC_SP ?? 3,
+                                rsiPeriod: Site.IND_CFG.RSI_P ?? 14,
+                                stochasticPeriod: Site.IND_CFG.STC_P ?? 14,
+                                values: close,
+                            });
+                            const OB = (((srsi[srsi.length - 1] || {}).stochRSI || 0) > 80) &&
+                                (((srsi[srsi.length - 1] || {}).d || 0) > 80) &&
+                                (((srsi[srsi.length - 1] || {}).k || 0) > 80);
+                            const OS = (((srsi[srsi.length - 1] || {}).stochRSI || 100) < 20) &&
+                                (((srsi[srsi.length - 1] || {}).d || 100) < 20) &&
+                                (((srsi[srsi.length - 1] || {}).k || 100) < 20);
+                            cache.SRS_OB = OB;
+                            cache.SRS_OS = OS;
+                            cache.SRS_BULL = !OS;
+                            cache.SRS_BEAR = !OB;
                         }
                     },
                     ICH: () => {
@@ -229,84 +312,117 @@ class CandlestickEngine {
                     BLL: () => {
                         if (cache.BLL_BULL === null) {
                             cache.BLL_BULL = bullish(csd);
+                            cache.BLL_BEAR = bearish(csd);
                         }
                     },
                     SMA: () => {
                         if (cache.SMA_BULL === null) {
                             const ma = SMA.calculate({ values: close, period: Site.IND_CFG.MAP ?? 20 });
                             cache.SMA_BULL = latestRate > (ma[ma.length - 1] || Infinity);
+                            cache.SMA_BEAR = latestRate < (ma[ma.length - 1] || 0);
+                        }
+                    },
+                    EXP: () => {
+                        if (cache.EXP_BULL === null) {
+                            const ma1 = WEMA.calculate({ values: close, period: Site.IND_CFG.EXP1 ?? 25 });
+                            const ma2 = WEMA.calculate({ values: close, period: Site.IND_CFG.EXP1 ?? 100 });
+                            const bull = (ma1[ma1.length - 1] || 0) > (ma2[ma2.length - 1] || 0);
+                            const bear = (ma1[ma1.length - 1] || 0) < (ma2[ma2.length - 1] || 0);
+                            // console.log(bull, bear, ma1[ma1.length - 1], ma2[ma2.length - 1] || 0);
+                            cache.EXP_BEAR = bear;
+                            cache.EXP_BULL = bull;
+                        }
+                    },
+                    KST: () => {
+                        if (cache.KST_BULL === null) {
+                            const kst = KST.calculate({
+                                ROCPer1: Site.IND_CFG.KST_RP1 ?? 10,
+                                ROCPer2: Site.IND_CFG.KST_RP2 ?? 15,
+                                ROCPer3: Site.IND_CFG.KST_RP3 ?? 20,
+                                ROCPer4: Site.IND_CFG.KST_RP4 ?? 30,
+                                signalPeriod: Site.IND_CFG.KST_SGP ?? 9,
+                                SMAROCPer1: Site.IND_CFG.KST_SP1 ?? 10,
+                                SMAROCPer2: Site.IND_CFG.KST_SP2 ?? 10,
+                                SMAROCPer3: Site.IND_CFG.KST_SP3 ?? 10,
+                                SMAROCPer4: Site.IND_CFG.KST_SP4 ?? 15,
+                                values: close,
+                            });
+
+                            const bull = (((kst[kst.length - 1] || {}).kst || Number.MIN_VALUE) > ((kst[kst.length - 1] || {}).signal || 0))
+                                && (((kst[kst.length - 1] || {}).kst || Number.MIN_VALUE) > 0);
+                            const bear = (((kst[kst.length - 1] || {}).kst || Number.MAX_VALUE) < ((kst[kst.length - 1] || {}).signal || 0))
+                                && (((kst[kst.length - 1] || {}).kst || Number.MAX_VALUE) < 0);
+                            cache.KST_BULL = bull;
+                            cache.KST_BEAR = bear;
                         }
                     },
                     EMA: () => {
                         if (cache.EMA_BULL === null) {
                             const ma = EMA.calculate({ values: close, period: Site.IND_CFG.MAP ?? 20 });
                             cache.EMA_BULL = latestRate > (ma[ma.length - 1] || Infinity);
+                            cache.EMA_BEAR = latestRate < (ma[ma.length - 1] || 0);
                         }
                     },
                     WMA: () => {
                         if (cache.WMA_BULL === null) {
                             const ma = WMA.calculate({ values: close, period: Site.IND_CFG.MAP ?? 20 });
                             cache.WMA_BULL = latestRate > (ma[ma.length - 1] || Infinity);
+                            cache.WMA_BEAR = latestRate < (ma[ma.length - 1] || 0);
                         }
                     },
                     VWP: () => {
                         if (cache.VWP_BULL === null) {
                             const vwap = VWAP.calculate({ close, high, low, volume });
                             cache.VWP_BULL = latestRate > (vwap[vwap.length - 1] || Infinity);
+                            cache.VWP_BEAR = latestRate < (vwap[vwap.length - 1] || 0);
                         }
                     },
                     AOS: () => {
                         if (cache.AOS_BULL === null) {
-                            const ao = AwesomeOscillator.calculate({ high, low, fastPeriod: Site.IND_CFG.AOS_FSP ?? 5, slowPeriod: Site.IND_CFG.AOS_SLP ?? 34, })
+                            const ao = AwesomeOscillator.calculate({ high, low, fastPeriod: Site.IND_CFG.AOS_FSP ?? 5, slowPeriod: Site.IND_CFG.AOS_SLP ?? 34 });
                             cache.AOS_BULL = (ao[ao.length - 1] || 0) > 0;
+                            cache.AOS_BEAR = (ao[ao.length - 1] || 0) < 0;
                         }
                     },
                     TRX: () => {
                         if (cache.TRX_BULL === null) {
                             const trix = TRIX.calculate({ values: close, period: Site.IND_CFG.TRX_P ?? 15 });
                             cache.TRX_BULL = (trix[trix.length - 1] || 0) > 0;
+                            cache.TRX_BEAR = (trix[trix.length - 1] || 0) < 0;
                         }
                     },
                     ADX: () => {
                         if (cache.STRONG === null) {
                             const adx = ADX.calculate({ close, high, low, period: Site.IND_CFG.ADX_P ?? 14 });
-                            cache.STRONG = ((adx[adx.length - 1] || {}).adx || 0) > 25;
+                            cache.STRONG = ((adx[adx.length - 1] || {}).adx || 0) >= 25;
                         }
                     },
                     STC: () => {
                         if (cache.STC_OB === null) {
-                            const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_CFG.STC_P ?? 14, signalPeriod: Site.IND_CFG.STC_SP ?? 3 })
+                            const stoch = Stochastic.calculate({ close, high, low, period: Site.IND_CFG.STC_P ?? 14, signalPeriod: Site.IND_CFG.STC_SP ?? 3 });
                             cache.STC_OB = ((stoch[stoch.length - 1] || {}).k || 0) > 80;
+                            cache.STC_OS = ((stoch[stoch.length - 1] || {}).k || Infinity) < 20;
                         }
                     },
                     RSI: () => {
                         if (cache.RSI_OB === null) {
-                            const rsi = RSI.calculate({ values: close, period: Site.IND_CFG.RSI_P ?? 14 })
+                            const rsi = RSI.calculate({ values: close, period: Site.IND_CFG.RSI_P ?? 14 });
                             cache.RSI_OB = (rsi[rsi.length - 1] || 0) > 70;
+                            cache.RSI_OS = (rsi[rsi.length - 1] || Infinity) < 30;
                         }
                     },
                     CCI: () => {
                         if (cache.CCI_OB === null) {
-                            const cci = CCI.calculate({ close, high, low, period: Site.IND_CFG.CCI_P ?? 14 })
+                            const cci = CCI.calculate({ close, high, low, period: Site.IND_CFG.CCI_P ?? 14 });
                             cache.CCI_OB = (cci[cci.length - 1] || 0) > 100;
+                            cache.CCI_OB = (cci[cci.length - 1] || Infinity) < -100;
                         }
                     },
                     MFI: () => {
                         if (cache.MFI_OB === null) {
                             const mfi = MFI.calculate({ close, volume, high, low, period: Site.IND_CFG.MFI_P ?? 14 });
                             cache.MFI_OB = (mfi[mfi.length - 1] || 0) > 80;
-                        }
-                    },
-                    SRS: () => {
-                        if (cache.SRS_OB === null) {
-                            const srsi = StochasticRSI.calculate({
-                                dPeriod: Site.IND_CFG.STC_SP ?? 3,
-                                kPeriod: Site.IND_CFG.STC_SP ?? 3,
-                                rsiPeriod: Site.IND_CFG.RSI_P ?? 14,
-                                stochasticPeriod: Site.IND_CFG.STC_P ?? 14,
-                                values: close,
-                            });
-                            cache.SRS_OB = (((srsi[srsi.length - 1] || {}).stochRSI || 0) > 80);
+                            cache.MFI_OS = (mfi[mfi.length - 1] || Infinity) < 20;
                         }
                     },
                     STR: () => {
@@ -317,11 +433,6 @@ class CandlestickEngine {
                     HGM: () => {
                         if (cache.HGM === null) {
                             cache.HGM = hangingman(csd);
-                        }
-                    },
-                    BAR: () => {
-                        if (cache.BAR === null) {
-                            cache.BAR = bearish(csd);
                         }
                     },
                     EST: () => {
@@ -349,6 +460,91 @@ class CandlestickEngine {
                             cache.TTP = tweezertop(csd);
                         }
                     },
+                    TWS: () => {
+                        if (cache.TWS === null) {
+                            cache.TWS = threewhitesoldiers(csd);
+                        }
+                    },
+                    MST: () => {
+                        if (cache.MST === null) {
+                            cache.MST = morningstar(csd);
+                        }
+                    },
+                    HMR: () => {
+                        if (cache.HMR === null) {
+                            cache.HMR = hammerpattern(csd);
+                        }
+                    },
+                    TBT: () => {
+                        if (cache.TBT === null) {
+                            cache.TBT = tweezerbottom(csd);
+                        }
+                    },
+                    ABB: () => {
+                        if (cache.ABB === null) {
+                            cache.ABB = abandonedbaby(csd);
+                        }
+                    },
+                    BLE: () => {
+                        if (cache.BLE === null) {
+                            cache.BLE = bullishengulfingpattern(csd);
+                        }
+                    },
+                    MDS: () => {
+                        if (cache.MDS === null) {
+                            cache.MDS = morningdojistar(csd);
+                        }
+                    },
+                    DFD: () => {
+                        if (cache.DFD === null) {
+                            cache.DFD = dragonflydoji(csd);
+                        }
+                    },
+                    BLH: () => {
+                        if (cache.BLH === null) {
+                            cache.BLH = bullishharami(csd);
+                        }
+                    },
+                    BLM: () => {
+                        if (cache.BLM === null) {
+                            cache.BLM = bullishmarubozu(csd);
+                        }
+                    },
+                    BLC: () => {
+                        if (cache.BLC === null) {
+                            cache.BLC = bullishharamicross(csd);
+                        }
+                    },
+                    BEP: () => {
+                        if (cache.BEP === null) {
+                            cache.BEP = bearishengulfingpattern(csd);
+                        }
+                    },
+                    EDS: () => {
+                        if (cache.EDS === null) {
+                            cache.EDS = eveningdojistar(csd);
+                        }
+                    },
+                    GSD: () => {
+                        if (cache.GSD === null) {
+                            cache.GSD = gravestonedoji(csd);
+                        }
+                    },
+                    BRH: () => {
+                        if (cache.BRH === null) {
+                            cache.BRH = bearishharami(csd);
+                        }
+                    },
+                    BRM: () => {
+                        if (cache.BRM === null) {
+                            cache.BRM = bearishmarubozu(csd);
+                        }
+                    },
+                    BHC: () => {
+                        if (cache.BHC === null) {
+                            cache.BHC = bearishharamicross(csd);
+                        }
+                    },
                     ATR: () => {
                         if (cache.ATR === null) {
                             const atr = ATR.calculate({ period: Site.IND_CFG.ATR_P ?? 14, close, high, low });
@@ -356,27 +552,40 @@ class CandlestickEngine {
                             cache.ATR = perc;
                         }
                     },
-                }
+                };
 
                 /**
                  * Computes entry point.
-                 * @returns {boolean} True if entry detected else False.
+                 * @returns {boolean|null} True if bullish entry detected, False if bearish entry detected, else False.
                  */
                 const step1 = () => {
                     ensureInd[Site.STR_ENTRY_IND]();
-                    if (!CandlestickEngine.#isEntry[mint]) {
-                        CandlestickEngine.#isEntry[mint] = [];
+                    if (!CandlestickEngine.#isEntryBull[mint]) {
+                        CandlestickEngine.#isEntryBull[mint] = [];
                     }
-                    CandlestickEngine.#isEntry[mint].push(cache[`${Site.STR_ENTRY_IND}_BULL`] || false);
-                    if (CandlestickEngine.#isEntry[mint].length > (Site.IND_CFG.DIL || 5)) {
-                        CandlestickEngine.#isEntry[mint] = CandlestickEngine.#isEntry[mint].slice(CandlestickEngine.#isEntry[mint].length - (Site.IND_CFG.DIL || 5));
+                    if (!CandlestickEngine.#isEntryBear[mint]) {
+                        CandlestickEngine.#isEntryBear[mint] = [];
                     }
-                    return CandlestickEngine.#isEntry[mint].length >= 2 ? (CandlestickEngine.#isEntry[mint][CandlestickEngine.#isEntry[mint].length - 1] && (!CandlestickEngine.#isEntry[mint][CandlestickEngine.#isEntry[mint].length - 2])) : false;
+                    CandlestickEngine.#isEntryBull[mint].push(cache[`${Site.STR_ENTRY_IND}_BULL`] || false);
+                    CandlestickEngine.#isEntryBear[mint].push(cache[`${Site.STR_ENTRY_IND}_BEAR`] || false);
+                    if (CandlestickEngine.#isEntryBull[mint].length > (Site.IND_CFG.DIR_LEN || 5)) {
+                        CandlestickEngine.#isEntryBull[mint] = CandlestickEngine.#isEntryBull[mint].slice(CandlestickEngine.#isEntryBull[mint].length - (Site.IND_CFG.DIR_LEN || 5));
+                    }
+                    if (CandlestickEngine.#isEntryBear[mint].length > (Site.IND_CFG.DIR_LEN || 5)) {
+                        CandlestickEngine.#isEntryBear[mint] = CandlestickEngine.#isEntryBear[mint].slice(CandlestickEngine.#isEntryBear[mint].length - (Site.IND_CFG.DIR_LEN || 5));
+                    }
+                    if (CandlestickEngine.#isEntryBull[mint].length >= 2 ? (((CandlestickEngine.#isEntryBull[mint][CandlestickEngine.#isEntryBull[mint].length - 1]) && (!CandlestickEngine.#isEntryBull[mint][CandlestickEngine.#isEntryBull[mint].length - 2]))) : false) {
+                        return true;
+                    }
+                    if (CandlestickEngine.#isEntryBear[mint].length >= 2 ? (((CandlestickEngine.#isEntryBear[mint][CandlestickEngine.#isEntryBear[mint].length - 1]) && (!CandlestickEngine.#isEntryBear[mint][CandlestickEngine.#isEntryBear[mint].length - 2]))) : false) {
+                        return false;
+                    }
+                    return null;
                 }
 
                 /**
-                 * Confirms bull trend.
-                 * @returns {boolean} True if bull trend else False.
+                 * Confirms trend.
+                 * @returns {boolean} True if trend else False.
                  */
                 const step2 = () => {
                     for (let i = 0; i < Site.STR_TREND_IND.length; i++) {
@@ -385,7 +594,7 @@ class CandlestickEngine {
                     /**
                      * @type {boolean[]}
                      */
-                    const bools = Site.STR_TREND_IND.map(x => cache[`${x}_BULL`] || false);
+                    const bools = Site.STR_TREND_IND.map(x => cache[`${x}_${cache.ENTRY ? 'BULL' : 'BEAR'}`] || false);
                     return booleanConsolidator(bools, Site.STR_TREND_CV);
                 }
 
@@ -409,7 +618,7 @@ class CandlestickEngine {
                     /**
                      * @type {boolean[]}
                      */
-                    const bools = Site.STR_OB_IND.map(x => cache[`${x}_OB`] || false);
+                    const bools = Site.STR_OB_IND.map(x => cache[`${x}_${cache.ENTRY ? 'OB' : 'OS'}`] || false);
                     return booleanConsolidator(bools, Site.STR_OB_CV);
                 }
 
@@ -418,13 +627,13 @@ class CandlestickEngine {
                  * @returns {boolean} True if reversal else False.
                  */
                 const step5 = () => {
-                    for (let i = 0; i < Site.STR_REV_IND.length; i++) {
-                        ensureInd[Site.STR_REV_IND[i]]();
+                    for (let i = 0; i < (cache.ENTRY ? Site.STR_REV_IND_BULL : Site.STR_REV_IND_BEAR).length; i++) {
+                        ensureInd[(cache.ENTRY ? Site.STR_REV_IND_BULL : Site.STR_REV_IND_BEAR)[i]]();
                     }
                     /**
                      * @type {boolean[]}
                      */
-                    const bools = Site.STR_REV_IND.map(x => cache[`${x}`] || false);
+                    const bools = (cache.ENTRY ? Site.STR_REV_IND_BULL : Site.STR_REV_IND_BEAR).map(x => cache[`${x}`] || false);
                     return booleanConsolidator(bools, Site.STR_REV_CV);
                 }
 
@@ -434,7 +643,13 @@ class CandlestickEngine {
                  */
                 const step6 = () => {
                     ensureInd[Site.STR_TSL_IND]();
-                    return cache[`${Site.STR_TSL_IND}_SL`];
+                    if (cache.ENTRY === true) {
+                        return cache[`${Site.STR_TSL_IND}_SL`] < latestRate ? cache[`${Site.STR_TSL_IND}_SL`] : (latestRate - (cache[`${Site.STR_TSL_IND}_SL`] - latestRate));
+                    }
+                    else if (cache.ENTRY === false) {
+                        return cache[`${Site.STR_TSL_IND}_SL`] > latestRate ? cache[`${Site.STR_TSL_IND}_SL`] : (latestRate + (latestRate - cache[`${Site.STR_TSL_IND}_SL`]));
+                    }
+                    return 0;
                 }
 
                 /**
@@ -454,56 +669,59 @@ class CandlestickEngine {
 
                 // STRATEGY NAME => 7 STEPS TO HEAVEN (H7)
                 Log.flow(`CS > ${name} > Checking for entry...`, 6);
-                if (step1()) {
+                cache.ENTRY = step1();
+                if (cache.ENTRY === true || cache.ENTRY === false) {
                     // Entry detected.
-                    cache.ENTRY = true;
-                    Log.flow(`CS > ${name} > Entry detected. Confirming bull trend...`, 6);
+                    Log.flow(`CE > ${mint} > Entry detected. Confirming ${cache.ENTRY ? 'bull' : 'bear'} trend...`, 6);
                     if ((Site.STR_TREND_FV && step2()) || (!Site.STR_TREND_FV)) {
                         // Trend confirmed.
-                        Log.flow(`CS > ${name} > Trend confirmed. Checking trend strength...`, 6);
+                        Log.flow(`CE > ${mint} > Trend confirmed. Checking trend strength...`, 6);
                         if ((Site.STR_STG_FV && step3()) || (!Site.STR_STG_FV)) {
                             // Trend strength confirmed.
-                            Log.flow(`CS > ${name} > Strength is acceptable. Checking if overbought...`, 6);
+                            Log.flow(`CE > ${mint} > Strength is acceptable. Checking if over${cache.ENTRY ? 'bought' : 'sold'}...`, 6);
                             if ((Site.STR_OB_FV && (!step4())) || (!Site.STR_OB_FV)) {
                                 // No presence of effecting overbought confirmed.
-                                Log.flow(`CS > ${name} > Overbought condition acceptable. Checking for reversals...`, 6);
+                                Log.flow(`CE > ${mint} > Overbought condition acceptable. Checking for reversals...`, 6);
                                 if ((Site.STR_REV_FV && (!step5())) || (!Site.STR_REV_FV)) {
-                                    Log.flow(`CS > ${name} > Reversal conditions acceptable. Calculating stop loss...`, 6);
+                                    Log.flow(`CE > ${mint} > Reversal conditions acceptable. Checking volatility...`, 6);
                                     // No reversl detected.
-                                    stoploss = step6();
-                                    Log.flow(`CS > ${name} > Stop loss price is ${FFF(stoploss)}. Checking volatility...`, 6);
-                                    // Stop loss computed.
                                     if (step7()) {
                                         // Volatility is acceptable
-                                        Log.flow(`CS > ${name} > Volatility is acceptable. Buy signal confirmed.`, 6);
-                                        buy = true;
-                                        desc = "Confirmed Buy"
+                                        Log.flow(`CE > ${mint} > Volatility is acceptable. Buy signal confirmed.`, 6);
+                                        if (cache.ENTRY) {
+                                            buy = true;
+                                            desc = "Confirmed Buy"
+                                        }
+                                        else {
+                                            sell = true;
+                                            desc = "Confirmed Sell"
+                                        }
                                     }
                                     else {
-                                        Log.flow(`CS > ${name} > Volatility out of range.`, 6);
+                                        Log.flow(`CE > ${mint} > Volatility out of range.`, 6);
                                     }
                                 }
                                 else {
-                                    Log.flow(`CS > ${name} > Trend reversal detected.`, 6);
+                                    Log.flow(`CE > ${mint} > Trend reversal detected.`, 6);
                                 }
                             }
                             else {
-                                Log.flow(`CS > ${name} > Token is overbought.`, 6);
+                                Log.flow(`CE > ${mint} > Ticker is overbought.`, 6);
                             }
                         }
                         else {
-                            Log.flow(`CS > ${name} > Strength not acceptable.`, 6);
+                            Log.flow(`CE > ${mint} > Strength not acceptable.`, 6);
                         }
                     }
                     else {
-                        Log.flow(`CS > ${name} > Trend not confirmed.`, 6);
+                        Log.flow(`CE > ${mint} > Trend not confirmed.`, 6);
                     }
                 }
                 else {
-                    Log.flow(`CS > ${name} > No entry detected.`, 6);
+                    Log.flow(`CE > ${mint} > No entry detected.`, 6);
                 }
 
-                let stopLossPrice = stoploss < latestRate ? stoploss : (latestRate - (stoploss - latestRate));
+                let stopLossPrice = step6();
                 cache = Object.fromEntries(Object.entries(cache).filter(([__dirname, v]) => v !== null));
 
                 CandlestickEngine.#multilayer(name, mint, buy, sell, desc, latestRate, ts)
@@ -563,10 +781,10 @@ class CandlestickEngine {
         let nbuy = buy;
         let nsell = sell;
         // return { nbuy, nsell };
-        let lastSig = signals[signals.length - 1];
-        if (buy) {
-            nbuy = lastSig == "BDNP"
-        }
+        // let lastSig = signals[signals.length - 1];
+        // if (buy) {
+        //     nbuy = lastSig == "BDNP"
+        // }
         return { nbuy, nsell };
     }
 

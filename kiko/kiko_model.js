@@ -1,8 +1,10 @@
 const { buy } = require("../engine/token");
+const { OHLCV } = require("../engine/token_model");
 const Site = require("../env");
 const FFF = require("../lib/fff");
 const formatNumber = require("../lib/format_number");
 const getTimeElapsed = require("../lib/get_time_elapsed");
+let SocketEngine = null;
 
 class ObserverToken {
 
@@ -82,6 +84,42 @@ class ObserverToken {
     price;
 
     /**
+     * Price history of the token
+     * @type {OHLCV[]}
+     */
+    price_history;
+
+    /**
+     * Temporary attribute
+     * @type {number}
+     */
+    temp_open;
+
+    /**
+     * Temporary attribute
+     * @type {number}
+     */
+    temp_high;
+
+    /**
+     * Temporary attribute
+     * @type {number}
+     */
+    temp_low;
+
+    /**
+     * Temporary attribute
+     * @type {number}
+     */
+    temp_volume;
+
+    /**
+     * Referenc to the interval that backs up price
+     * @type {NodeJS.Timeout|null}
+     */
+    timeout_ref;
+
+    /**
      * @type {number}
      */
     dev_initial_buy;
@@ -151,6 +189,7 @@ class ObserverToken {
             uri: this.uri,
             raw_audit_data: (this.audit_result || {}).raw || {},
             human_audit_data: { ...((this.audit_result || {}).human || {}), 'Observe Time': getTimeElapsed(this.reg_timestamp, Date.now()) },
+            price_history: this.price_history,
         });
     }
 
@@ -165,6 +204,7 @@ class ObserverToken {
         this.name = name || "";
         this.mint = mint || "";
         this.symbol = symbol || "";
+        this.price_history = [];
         this.description = "";
         this.developer = traderPublicKey || "";
         this.uri = uri || "";
@@ -209,6 +249,10 @@ class ObserverToken {
         this.audit_timestamp = 0;
         this.audit_result = null;
         this.last_updated = Date.now();
+        this.temp_open = this.price;
+        this.temp_high = this.price;
+        this.temp_low = this.price;
+        this.temp_volume = this.buy_volume_sol + this.sell_volume_sol;
         this.inactivity_obj_ref = setInterval(() => {
             const timeSinceLU = Date.now() - (this.last_updated || 0);
             if (timeSinceLU >= Site.OB_TOKEN_INACTIVITY_TIMEOUT) {
@@ -216,6 +260,19 @@ class ObserverToken {
                 this.remove_ref(this.mint);
             }
         }, Site.OB_TOKEN_INACTIVITY_INTERVAL);
+        this.timeout_ref = setInterval(() => {
+            if (this.price) {
+                let obj = new OHLCV(this.temp_open, this.temp_high, this.temp_low, this.price, this.temp_volume || (this.price_history[this.price_history.length - 1] || {}).volume || 0, Date.now());
+                this.temp_open = 0;
+                this.temp_high = 0;
+                this.temp_low = 0;
+                this.temp_volume = 0;
+                this.price_history.push(obj);
+            }
+            if (this.price_history.length > Site.COL_MAX_LENGTH) {
+                this.price_history = this.price_history.slice(this.price_history.length - Site.COL_MAX_LENGTH);
+            }
+        }, Site.COL_DURATION_MS);
     }
 
     /**
@@ -230,6 +287,9 @@ class ObserverToken {
             else {
                 if (this.inactivity_obj_ref) {
                     clearInterval(this.inactivity_obj_ref);
+                }
+                if (this.timeout_ref) {
+                    clearInterval(this.timeout_ref);
                 }
                 resolve(true);
             }
@@ -247,6 +307,43 @@ class ObserverToken {
                 this.audit_result = result;
                 this.audit_timestamp = Date.now();
                 this.number_of_audits++;
+                if (!this.audited) {
+                    // newly audited token
+                    if (Site.UI) {
+                        if (!SocketEngine) {
+                            SocketEngine = require("../engine/socket");
+                        }
+                        SocketEngine.sendKiko(null, {
+                            audited: {
+                                [this.mint]: {
+                                    name: this.name || "",
+                                    symbol: this.symbol || "",
+                                    regTimestamp: this.reg_timestamp || Date.now(),
+                                    auditTimestamp: this.audit_timestamp || Date.now(),
+                                    auditCount: this.number_of_audits || 0,
+                                    bonding: this.bonding_progress || 0,
+                                    mint: this.mint || "",
+                                }
+                            }
+                        }, false);
+                    }
+                }
+                else {
+                    // already audited token
+                    if (Site.UI) {
+                        if (!SocketEngine) {
+                            SocketEngine = require("../engine/socket");
+                        }
+                        SocketEngine.sendKiko(null, {
+                            audited: {
+                                [this.mint]: {
+                                    auditTimestamp: this.audit_timestamp || Date.now(),
+                                    auditCount: this.number_of_audits || 0,
+                                }
+                            }
+                        }, false);
+                    }
+                }
                 this.audited = true;
             }
             else {

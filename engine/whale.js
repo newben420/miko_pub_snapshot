@@ -10,6 +10,7 @@ const { Token } = require("./token_model");
 
 let TokenEngine = null;
 let TelegramEngine = null;
+let SocketEngine = null;
 
 class Whale {
 
@@ -100,6 +101,13 @@ class WhaleEngine {
     static #log = {};
 
     /**
+     * Gets a token logs
+     * @param {string} mint 
+     * @returns {string[]}
+     */
+    static getLogs = (mint) => WhaleEngine.#log[mint] || [];
+
+    /**
      * @type {Record<string, Set<string>>}
      */
     static #unloggedSelfActions = {};
@@ -152,6 +160,14 @@ class WhaleEngine {
             const l = WhaleEngine.#data[mint].length;
             WhaleEngine.#log[mint].push(`${getDateTime2()} Initiated with ${l} whale${l == 1 ? "" : "s"}.`);
             Log.flow(`Whale > ${mint} added.`, 3);
+            if (Site.UI) {
+                if (!SocketEngine) {
+                    SocketEngine = require("./socket");
+                }
+                SocketEngine.sendToken(mint, {
+                    whaleLog: WhaleEngine.getLogs(mint).slice(-1),
+                });
+            }
         }
     }
 
@@ -197,6 +213,14 @@ class WhaleEngine {
                         whale.currentAmount = ca;
                         whale.delta.push(txType == "buy" ? percChange : (-1 * percChange));
                         actionTaken = true;
+                        if (Site.UI) {
+                            if (!SocketEngine) {
+                                SocketEngine = require("./socket");
+                            }
+                            SocketEngine.sendToken(mint, {
+                                whaleLog: WhaleEngine.getLogs(mint).slice(-1),
+                            });
+                        }
                     }
                 }
             }
@@ -229,6 +253,14 @@ class WhaleEngine {
                         }
                         WhaleEngine.#data[mint].splice(ind, (WhaleEngine.#data[mint].length >= Site.WH_MAX_WHALES) ? 1 : 0, (new Whale({ trader: traderPublicKey, amount: newTokenBalance }, false)));
                         WhaleEngine.#log[mint].push(`${getDateTime2()} W${(ind + 1)} ${replacedWhale ? `is replaced.` : `is overtaken.`}${mcChange}${acts}`);
+                        if (Site.UI) {
+                            if (!SocketEngine) {
+                                SocketEngine = require("./socket");
+                            }
+                            SocketEngine.sendToken(mint, {
+                                whaleLog: WhaleEngine.getLogs(mint).slice(-1),
+                            });
+                        }
                         actionTaken = true;
                     }
                 }
@@ -264,11 +296,20 @@ class WhaleEngine {
                                     if (!TelegramEngine) {
                                         TelegramEngine = require("./telegram");
                                     }
+                                    let msg = ``;
                                     if (Site.SIMULATION) {
-                                        TelegramEngine.sendMessage(`✅ *SELL*\n\nWhale Exit swapped ${token.symbol} ${FFF(((exit.sellPerc / 100) * allocation) || 0)} \\(${exit.sellPerc}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`);
+                                        msg = `✅ *SELL*\n\nWhale Exit swapped ${token.symbol} ${FFF(((exit.sellPerc / 100) * allocation) || 0)} \\(${exit.sellPerc}%\\) to ${Site.BASE} ${FFF(done)} \\(USD ${FFF(done * SolPrice.get())}\\)\n\nMC 📈 ${Site.BASE} ${FFF(token.current_marketcap)} \\(USD ${FFF(token.current_marketcap * SolPrice.get())}\\)\nPrice 💰 ${Site.BASE} ${FFF(token.current_price)}\n`;
+                                        TelegramEngine.sendMessage(msg);
                                     }
                                     else {
-                                        TelegramEngine.sendMessage(`✅ *SELL*\n\nWhale Exit executed on ${token.symbol}\n\n🪧 \`${done}\``);
+                                        msg = `✅ *SELL*\n\nWhale Exit executed on ${token.symbol}\n\n🪧 \`${done}\``;
+                                        TelegramEngine.sendMessage(msg);
+                                    }
+                                    if (Site.UI && msg) {
+                                        if (!SocketEngine) {
+                                            SocketEngine = require("./socket");
+                                        }
+                                        SocketEngine.sendNote(msg);
                                     }
                                     token.executed_whale_exits.push(i);
                                     break;

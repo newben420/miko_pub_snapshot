@@ -24,6 +24,8 @@ class Site {
     static TITLE = process.env.TITLE ?? "STEGEN";
     static PORT = parseInt(process.env.PORT || "5000");
     static PRODUCTION = process.env.PRODUCTION == "true";
+    static UI = (process.env.UI || "").toLowerCase() == "true";
+    static TG = (process.env.TG || "").toLowerCase() == "true";
     static MAX_FLOW_LOG_WEIGHT = parseInt(process.env.MAX_FLOW_LOG_WEIGHT || "5");
     static BASE = process.env.BASE ?? "SOL";
     static BASE_DENOMINATED = process.env.BASE_DENOMINATED == "true";
@@ -82,7 +84,8 @@ class Site {
     static STR_OB_IND = (process.env.STR_OB_IND || "STC").split(" ").filter(x => x.length == 3);
     static STR_OB_CV = parseFloat(process.env.STR_OB_CV || "0") || 0;
     static STR_OB_FV = parseFloat(process.env.STR_OB_FV || "0") || 0;
-    static STR_REV_IND = (process.env.STR_REV_IND || "STR HGM BER EST TBC PIL BEC DCC").split(" ").filter(x => x.length == 3);
+    static STR_REV_IND_BULL = (process.env.STR_REV_IND_BULL || "STR HGM EST TBC PIL DCC TTP").split(" ").filter(x => x.length == 3);
+    static STR_REV_IND_BEAR = (process.env.STR_REV_IND_BEAR || "TWS MST HMR TBT").split(" ").filter(x => x.length == 3);
     static STR_REV_CV = parseFloat(process.env.STR_REV_CV || "0") || 0;
     static STR_REV_FV = parseFloat(process.env.STR_REV_FV || "0") || 0;
     static STR_TSL_IND = process.env.STR_TSL_IND || "PSR";
@@ -180,6 +183,24 @@ class Site {
     static SIM_EXECS = (process.env.SIM_EXECS || "").split(" ").filter(x => x.length > 0);
     static SIM_EXEC_USE_HIGH_FOR_RATE = (process.env.SIM_EXEC_USE_HIGH_FOR_RATE || "").toLowerCase() == "true";
     static SIM_REPORT_INCLUDE_TRADES = (process.env.SIM_REPORT_INCLUDE_TRADES || "").toLowerCase() == "true";
+
+    static UI_AUTH = (process.env.UI_AUTH || "").toLowerCase() == "true";
+    static UI_AUTH_BYPASSED_PATHS = (process.env.UI_AUTH_BYPASSED_PATHS || "").split(" ").filter(pth => pth.length > 0);
+    static UI_AUTH_JWT_ISSUER = process.env.UI_AUTH_JWT_ISSUER || Site.TITLE;
+    static UI_AUTH_SESS_EXP_MS = parseInt(process.env.UI_AUTH_SESS_EXP_MS || "0") || 7200000;
+    static UI_AUTH_COOK_EXP_MS = parseInt(process.env.UI_AUTH_COOK_EXP_MS || "0") || 86400000;
+    static UI_AUTH_JWT_RENEW_TIMELEFT_MS = parseInt(process.env.UI_AUTH_JWT_RENEW_TIMELEFT_MS || "0") || 720000;
+    static UI_AUTH_USERNAME = process.env.UI_AUTH_USERNAME || "admin";
+    static UI_AUTH_PASSWORD = process.env.UI_AUTH_PASSWORD || "root";
+    static UI_AUTH_JWT_USER_SECRET = process.env.UI_AUTH_JWT_USER_SECRET || "wreiynififw";
+    static UI_AUTH_JWT_SECRET_PREFIX = process.env.UI_AUTH_JWT_SECRET_PREFIX || "en8fyb7bfwf";
+    static UI_AUTH_COOK_SECRET = process.env.UI_AUTH_COOK_SECRET || "34rif38nyfwf";
+    static UI_AUTH_JWT_COOKIE_NAME = process.env.UI_AUTH_JWT_COOKIE_NAME || "sess";
+    static UI_AUTH_IPBLACKLIST_MAX_DURATION_MS = parseInt(process.env.UI_AUTH_IPBLACKLIST_MAX_DURATION_MS || "0") || 3600000;
+    static UI_AUTH_MAX_FAILED_LOGIN_ATTEMPTS = parseInt(process.env.UI_AUTH_MAX_FAILED_LOGIN_ATTEMPTS || "0") || 5;
+    static UI_DEV_URL = process.env.UI_DEV_URL || "/";
+    static UI_CHART_MULTIPLES = (process.env.UI_CHART_MULTIPLES || "1 2 5").split(" ").map(x => parseInt(x)).filter(x => Number.isInteger(x) && x > 0);
+    static UI_CHART_HEIGHT_PX = parseInt(process.env.UI_CHART_HEIGHT_PX || "0") || 0;
 }
 
 module.exports = Site;

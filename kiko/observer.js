@@ -6,6 +6,7 @@ const Log = require("../lib/log");
 const AuditEngine = require("./audit");
 const GraduateEngine = require("./graduate");
 const { ObserverToken } = require("./kiko_model");
+let SocketEngine = null;
 
 /**
  * This monitors tokens until they graduate or fail
@@ -76,6 +77,15 @@ class ObserverEngine {
             Log.flow(`Observer > ${ObserverEngine.tokens[mint].name || ""} (${ObserverEngine.tokens[mint].symbol || ""}) > Added (${Object.keys(ObserverEngine.tokens).length} / ${Site.OB_MAX_TOKENS}).`, 4);
             ObserverEngine.#startObservation(mint);
             ObserverEngine.observed++;
+            if (Site.UI) {
+                if (!SocketEngine) {
+                    SocketEngine = require("../engine/socket");
+                }
+                SocketEngine.sendKiko(null, {
+                    currentTokens: Object.keys(ObserverEngine.tokens).length,
+                    allTokens: ObserverEngine.observed,
+                }, false);
+            }
         }
     }
 
@@ -92,6 +102,12 @@ class ObserverEngine {
                     ObserverEngine.#stopObservation(mint);
                     Log.flow(`Observer > ${ObserverEngine.tokens[mint].name || ""} (${ObserverEngine.tokens[mint].symbol || ""}) > Removed (Reg: ${getTimeElapsed(ObserverEngine.tokens[mint].reg_timestamp, Date.now())} | LU: ${getTimeElapsed(ObserverEngine.tokens[mint].last_updated, Date.now())} | Reason: ${ObserverEngine.tokens[mint].remove_remark} | MC: ${Site.BASE} ${FFF(ObserverEngine.tokens[mint].marketcapSol)} USD ${FFF(ObserverEngine.tokens[mint].marketcapSol * SolPrice.get())} | Vol: ${Site.BASE} ${FFF((ObserverEngine.tokens[mint].buy_volume_sol + ObserverEngine.tokens[mint].sell_volume_sol))} USD ${FFF((ObserverEngine.tokens[mint].buy_volume_sol + ObserverEngine.tokens[mint].sell_volume_sol) * SolPrice.get())}).`, 4);
                     delete ObserverEngine.tokens[mint];
+                    if (Site.UI) {
+                        if (!SocketEngine) {
+                            SocketEngine = require("../engine/socket");
+                        }
+                        SocketEngine.sendKiko(null, mint, true);
+                    }
                     resolve(true);
                 }
                 else {
@@ -115,6 +131,7 @@ class ObserverEngine {
                 if (message.pool ? (message.pool == Site.LA_POOL || Site.LA_POOL == "auto") : false) {
                     ObserverEngine.tokens[mint].last_updated = Date.now()
                     const { traderPublicKey, txType, tokenAmount, solAmount, newTokenBalance, marketCapSol, vSolInBondingCurve } = message;
+                    let obj = { audited: { [mint]: {} } };
                     // Update Holders
                     if (traderPublicKey) {
                         if (ObserverEngine.tokens[mint].holders[traderPublicKey] || ObserverEngine.tokens[mint].holders[traderPublicKey] === 0) {
@@ -167,15 +184,29 @@ class ObserverEngine {
                     }
                     // Update Marketcap
                     ObserverEngine.tokens[mint].marketcapSol = parseFloat(marketCapSol) || 0;
-                    // Update Price and Circulating Supply
+                    // Update Price and Circulating Supply and related items
                     if (solAmount && tokenAmount && marketCapSol) {
                         let sa = parseFloat(solAmount) || 0;
                         let ta = parseFloat(tokenAmount || 0);
                         let mc = parseFloat(marketCapSol || 0);
-                        ObserverEngine.tokens[mint].price = (sa / ta) || 0;
+                        const price = (sa / ta) || 0;
+                        ObserverEngine.tokens[mint].price = price;
                         ObserverEngine.tokens[mint].circulating_supply = (mc / ObserverEngine.tokens[mint].price) || 0;
+                        if(ObserverEngine.tokens[mint].temp_open === 0){
+                            ObserverEngine.tokens[mint].temp_open = price;
+                        }
+                        if(ObserverEngine.tokens[mint].temp_high === 0 || ObserverEngine.tokens[mint].temp_high < price){
+                            ObserverEngine.tokens[mint].temp_high = price;
+                        }
+                        if(ObserverEngine.tokens[mint].temp_low === 0 || ObserverEngine.tokens[mint].temp_low > price){
+                            ObserverEngine.tokens[mint].temp_low = price;
+                        }
+                        ObserverEngine.tokens[mint].temp_volume += parseFloat(message.solAmount || "0") || 0;
                     }
                     // Update Bonding Progress
+                    if (ObserverEngine.tokens[mint].bonding_progress != (((parseFloat(vSolInBondingCurve || "0") || 0) / 115) * 100)) {
+                        obj.audited[mint].bonding = ((parseFloat(vSolInBondingCurve || "0") || 0) / 115) * 100;
+                    }
                     ObserverEngine.tokens[mint].bonding_progress = ((parseFloat(vSolInBondingCurve || "0") || 0) / 115) * 100;
 
 
@@ -185,6 +216,15 @@ class ObserverEngine {
                         ObserverEngine.tokens[mint].triggerAudit();
                     }
 
+                    if (Object.keys(obj.audited[mint]).length > 0 && ObserverEngine.tokens[mint] && ObserverEngine.tokens[mint].audited) {
+                        if (Site.UI) {
+                            if (!SocketEngine) {
+                                SocketEngine = require("../engine/socket");
+                            }
+                            SocketEngine.sendKiko(null, obj, false);
+                        }
+                    }
+
                     if (ObserverEngine.tokens[mint].bonding_progress >= Site.OB_GRADUATE_BD_PROGRESS && ObserverEngine.tokens[mint].audited) {
                         const graduateData = ObserverEngine.tokens[mint].getGraduateData();
                         ObserverEngine.tokens[mint].remove_remark = "Graduated";
@@ -192,6 +232,7 @@ class ObserverEngine {
                             GraduateEngine.entry(graduateData);
                         }
                     }
+                    
                 }
                 else if (message.pool && message.pool != "pump") {
                     if (ObserverEngine.tokens[mint].audited ? false : true) {

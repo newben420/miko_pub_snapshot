@@ -15,7 +15,7 @@ const FFF = require("./lib/fff");
 const getDateTime = require("./lib/get_date_time");
 const formatNumber = require("./lib/format_number");
 const html_to_pdf = require('html-pdf-node');
-const useCache = arg[0] != "nc";
+const useCache = arg[0] != "nc" && arg[1] != "nc";
 
 const tc = str => str.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
 
@@ -339,6 +339,7 @@ class Simulant {
                                             parseFloat(x.low) || 0,
                                             parseFloat(x.close) || 0,
                                             parseFloat(x.volume) || 0,
+                                            Date.now(),
                                         )
                                     );
                                 }

@@ -14,20 +14,27 @@ const JSP = require("./lib/json_safe_parse");
 const server = require('http').createServer(app);
 const TelegramEngine = require('./engine/telegram');
 const bodyParser = require("body-parser");
-const getDateTime = require('./lib/get_date_time');
 const TokenEngine = require('./engine/token');
 const CandlestickEngine = require('./engine/candlestick');
-const Regex = require('./lib/regex');
 const LaunchEngine = require('./kiko/launch');
 const ObserverEngine = require('./kiko/observer');
-const { obv } = require('technicalindicators');
 const { WhaleEngine } = require('./engine/whale');
-const { computeArithmeticDirectionMod } = require('./lib/mod_direction');
+const SocketEngine = require('./engine/socket');
+const cookieParser = require("cookie-parser");
+const AuthEngine = require('./engine/auth');
+const rootDir = require('./root');
 
+const ioServer = Site.UI ? require('socket.io')(server, {
+    cors: {
+        origin: Site.PRODUCTION ? Site.URL : Site.UI_DEV_URL,
+        credentials: true,
 
+    }
+}) : {};
 app.disable("x-powered-by");
 app.disable('etag');
 
+app.use(cookieParser(Site.UI_AUTH_COOK_SECRET, AuthEngine.cookieOpts()));
 app.use(bodyParser.json({ limit: "35mb" }));
 app.use(
     bodyParser.urlencoded({
@@ -47,10 +54,11 @@ app.post("/webhook", (req, res) => {
     res.sendStatus(200);
 });
 
-const startTime = getDateTime(Date.now());
-app.get("/", (req, res) => {
-    res.type("txt").send(`${Site.TITLE} running since ${startTime} ${process.env.TZ || "UTC"}`);
-});
+app.use(AuthEngine.entry);
+
+app.use(express.static(path.join(rootDir(), "public"), {
+    maxAge: '1y',
+}));
 
 app.use((req, res, next) => {
     res.sendStatus(404);
@@ -71,7 +79,7 @@ const proceedAfterInit = () => {
         ObserverEngine.registerSocket(ws);
         Log.flow(`WebSocket > Connected.`, 4);
 
-        if(!Site.TURN_OFF_KIKO){
+        if (!Site.TURN_OFF_KIKO) {
             let payload = {
                 method: "subscribeNewToken",
             }
@@ -197,6 +205,9 @@ process.on('unhandledRejection', async (err, promise) => {
 init(succ => {
     if (succ) {
         server.listen(Site.PORT, () => {
+            if (Site.UI) {
+                SocketEngine.init(ioServer);
+            }
             Log.flow(`${Site.TITLE} > ${Site.URL}`);
             if (Site.TG_SEND_START) {
                 setTimeout(() => {

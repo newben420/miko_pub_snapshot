@@ -4,6 +4,7 @@ const Site = require("../env");
 const Log = require("../lib/log");
 
 let TelegramEngine = null;
+let SocketEngine = null;
 
 /**
  * Filters good tokens that have graduated from observer to be sent to token engine.
@@ -39,7 +40,7 @@ class GraduateEngine {
      * @param {any} data
      */
     static entry = async (data) => {
-        const { name, mint, symbol, description, developer, uri, raw_audit_data, human_audit_data } = data;
+        const { name, mint, symbol, description, developer, uri, raw_audit_data, human_audit_data, price_history } = data;
         const r = raw_audit_data || {};
         Log.flow(`Graduate > ${name} (${symbol}) > Graduated.`, 4);
         const notDuplicate = Site.GR_USE_DUPLICATE_TOKEN_FILTER ? GraduateEngine.#duplicateHistory.indexOf(`${name}${symbol}`) < 0 : true;
@@ -114,7 +115,14 @@ class GraduateEngine {
                 Log.flow(`Graduate > ${name} (${symbol}) > Audit Failed > ${failReason}.`, 4);
                 GraduateEngine.notGraduated++;
                 if (Site.TG_SEND_AUDIT_FAILED) {
-                    TelegramEngine.sendMessage(`🚫 Audit Failed\n\n${name} \\(${symbol}\\)\n\n\`\`\`\nReason: ${failReason}\n${Object.keys(human_audit_data).map(key => `${key}: ${human_audit_data[key]}`).join("\n")}\`\`\``);
+                    let msg = `🚫 Audit Failed\n\n${name} \\(${symbol}\\)\n\n\`\`\`\nReason: ${failReason}\n${Object.keys(human_audit_data).map(key => `${key}: ${human_audit_data[key]}`).join("\n")}\`\`\``;
+                    TelegramEngine.sendMessage(msg);
+                    if (Site.UI && msg) {
+                        if (!SocketEngine) {
+                            SocketEngine = require("../engine/socket");
+                        }
+                        SocketEngine.sendNote(msg);
+                    }
                 }
             }
             else {
@@ -128,11 +136,29 @@ class GraduateEngine {
                             const audit = human_audit_data || {};
                             const logMode = `\n\`\`\`\n${Object.keys(audit).map(key => `${key}: ${audit[key]}`).join("\n")}\`\`\``;
                             const token = TokenEngine.getToken(mint);
-                            TelegramEngine.sendMessage(`✅ ${token.name} \\(${token.symbol}\\) is now being monitored${token.description ? `\n\n\`\`\`\n${token.description}\`\`\`` : ''}\n\n*Audit*${logMode}\n\n\`${mint}\``);
+                            token.price_history = structuredClone(price_history);
+                            let msg = `✅ ${token.name} \\(${token.symbol}\\) is now being monitored${token.description ? `\n\n\`\`\`\n${token.description}\`\`\`` : ''}\n\n*Audit*${logMode}\n\n\`${mint}\``;
+                            TelegramEngine.sendMessage(msg);
+                            if (Site.UI && msg) {
+                                if (!SocketEngine) {
+                                    SocketEngine = require("../engine/socket");
+                                }
+                                SocketEngine.sendNote(msg);
+                            }
                             token.description = "";
                         }
                     }
                 }
+            }
+
+            if (Site.UI) {
+                if (!SocketEngine) {
+                    SocketEngine = require("../engine/socket");
+                }
+                SocketEngine.sendKiko(null, {
+                    graduatedTokens: GraduateEngine.graduated,
+                    blockedTokens: GraduateEngine.notGraduated,
+                }, false);
             }
         }
         else {

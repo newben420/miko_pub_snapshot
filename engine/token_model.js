@@ -2,6 +2,8 @@ const Site = require("../env");
 const getTimeElapsed = require("../lib/get_time_elapsed");
 const CandlestickEngine = require("./candlestick");
 
+let SocketEngine = null;
+
 class LimitOrder {
     /**
      * Type of limit order
@@ -97,19 +99,26 @@ class OHLCV {
      */
     volume;
     /**
+     * Timestamp
+     * @type {number}
+     */
+    time;
+    /**
      * Class constructor
      * @param {number} open
      * @param {number} high
      * @param {number} low
      * @param {number} close
      * @param {number} volume
+     * @param {number} timestamp
      */
-    constructor(open, high, low, close, volume) {
+    constructor(open, high, low, close, volume, timestamp) {
         this.open = open || close;
         this.high = high || close;
         this.low = low || close;
         this.close = close;
         this.volume = volume || 0;
+        this.time = timestamp || 0;
     }
 }
 
@@ -417,13 +426,21 @@ class Token {
         this.min_pnl = 0;
         this.timeout_ref = setInterval(() => {
             if (this.current_price != 0) {
-                let obj = new OHLCV(this.temp_open, this.temp_high, this.temp_low, this.current_price, this.temp_volume || (this.price_history[this.price_history.length - 1] || {}).volume);
+                let obj = new OHLCV(this.temp_open, this.temp_high, this.temp_low, this.current_price, this.temp_volume || (this.price_history[this.price_history.length - 1] || {}).volume || 0, Date.now());
                 this.temp_open = 0;
                 this.temp_high = 0;
                 this.temp_low = 0;
                 this.temp_volume = 0;
                 this.price_history.push(obj);
                 CandlestickEngine.entry(this.name, this.mint, this.price_history);
+                if (Site.UI) {
+                    if (!SocketEngine) {
+                        SocketEngine = require("./socket");
+                    }
+                    SocketEngine.sendToken(this.mint, {
+                        price_history: this.price_history.slice(-1),
+                    });
+                }
             }
             if (this.price_history.length > Site.COL_MAX_LENGTH) {
                 this.price_history = this.price_history.slice(this.price_history.length - Site.COL_MAX_LENGTH);

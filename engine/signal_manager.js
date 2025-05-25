@@ -9,6 +9,8 @@ let TokenEngine = null;
 
 let TelegramEngine = null;
 
+let SocketEngine = null;
+
 let SolPrice = null;
 
 class SignalManager {
@@ -151,6 +153,12 @@ class SignalManager {
                             SignalManager.activeBuy = false;
                         }
                     }, opts, true);
+                    if(Site.UI){
+                        if(!SocketEngine){
+                            SocketEngine = require("./socket");
+                        }
+                        SocketEngine.sendNote(`Buy Alert\n\n${token.name}\n${desc}`);
+                    }
                 }
             }
             else {
@@ -251,6 +259,12 @@ class SignalManager {
                             SignalManager.acitveSell[mint] = false;
                         }
                     }, opts, true);
+                    if(Site.UI){
+                        if(!SocketEngine){
+                            SocketEngine = require("./socket");
+                        }
+                        SocketEngine.sendNote(`Sell Alert\n\n${token.name}\n${desc}`);
+                    }
                 }
             }
         }
