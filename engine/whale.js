@@ -166,6 +166,7 @@ class WhaleEngine {
                 }
                 SocketEngine.sendToken(mint, {
                     whaleLog: WhaleEngine.getLogs(mint).slice(-1),
+                    whales: WhaleEngine.getForUI(mint),
                 });
             }
         }
@@ -219,6 +220,7 @@ class WhaleEngine {
                             }
                             SocketEngine.sendToken(mint, {
                                 whaleLog: WhaleEngine.getLogs(mint).slice(-1),
+                                whales: WhaleEngine.getForUI(mint),
                             });
                         }
                     }
@@ -259,6 +261,7 @@ class WhaleEngine {
                             }
                             SocketEngine.sendToken(mint, {
                                 whaleLog: WhaleEngine.getLogs(mint).slice(-1),
+                                whales: WhaleEngine.getForUI(mint),
                             });
                         }
                         actionTaken = true;
@@ -351,6 +354,20 @@ class WhaleEngine {
         delete WhaleEngine.#log[mint];
         delete WhaleEngine.#MC[mint];
         delete WhaleEngine.#unloggedSelfActions[mint];
+        return m;
+    }
+
+    /**
+     * This removes a token from the engine and returns a telegram suited report
+     * @param {string} mint 
+     * @returns {string}
+     */
+    static getForUI = (mint) => {
+        let m = ``;
+        if ((!WhaleEngine.#data[mint])) {
+            return m;
+        }
+        m += `${WhaleEngine.#data[mint].map((whale, i) => `<span>W${(i + 1)}${whale.isOG ? `(OG)` : ``} 🔸 ${Math.max(-100, (((whale.currentAmount - whale.initialAmount) / whale.initialAmount) * 100)).toFixed(2)}%</span>`).join("")}`;
         return m;
     }
 }

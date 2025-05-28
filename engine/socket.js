@@ -188,7 +188,7 @@ class SocketEngine {
             socket.on("open_token", (mint, fn) => {
                 SocketEngine.socketTokenMap[socket.id] = mint;
                 const token = TokenEngine.getToken(mint);
-                fn(token ? SocketEngine.#processToken({ ...token, whaleLog: WhaleEngine.getLogs(mint) }) : null);
+                fn(token ? SocketEngine.#processToken({ ...token, whaleLog: WhaleEngine.getLogs(mint), whales:  WhaleEngine.getForUI(mint)}) : null);
             });
 
             socket.on('stats', async (fn) => {
@@ -414,6 +414,7 @@ class SocketEngine {
             "source",
             "exit_reasons",
             "entry_reasons",
+            "whales",
         ]
         Object.keys(token).forEach(key => {
             if (token[key] !== undefined && allowedFields.indexOf(key) >= 0) {

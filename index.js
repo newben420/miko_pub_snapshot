@@ -54,6 +54,10 @@ app.post("/webhook", (req, res) => {
     res.sendStatus(200);
 });
 
+app.all("/ping", (req, res) => {
+    res.sendStatus(200);
+});
+
 app.use(AuthEngine.entry);
 
 app.use(express.static(path.join(rootDir(), "public"), {

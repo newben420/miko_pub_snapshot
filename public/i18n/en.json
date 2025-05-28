@@ -102,8 +102,13 @@
             "RG_TS": "Reg. Timestamp",
             "LU_TS": "Last Updated",
             "CRC": "Chart Rows Count",
-            "WL": "Live Whale Log",
-            "DESC": "Description"
+            "WL": "Latest Whale Logs",
+            "DESC": "Live Whale Delta",
+            "MENU": {
+                "CLOSE": "Close Window",
+                "DELETE": "Delete Token",
+                "COPY": "Copy Mint"
+            }
         },
         "LOGOUT": {
             "TITLE": "Sign Out",

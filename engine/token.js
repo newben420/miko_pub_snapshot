@@ -147,13 +147,13 @@ class TokenEngine {
                         if (TokenEngine.#tokens[mint]) {
                             if (TokenEngine.#tokens[mint].pnl_base) {
                                 if (Site.SIMULATION && TokenEngine.#tokens[mint].added_in_simulation) {
-                                    if (TokenEngine.realizedPnLSimulation.length > 0 ? (TokenEngine.realizedPnLSimulation[TokenEngine.realizedPnLSimulation.length - 1] != (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees)) : true) {
-                                        TokenEngine.realizedPnLSimulation.push({ pnl: (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees), ts: TokenEngine.#tokens[mint].reg_timestamp });
+                                    if (TokenEngine.realizedPnLSimulation.length > 0 ? (TokenEngine.realizedPnLSimulation[TokenEngine.realizedPnLSimulation.length - 1] != (TokenEngine.#tokens[mint].pnl_base)) : true) {
+                                        TokenEngine.realizedPnLSimulation.push({ pnl: (TokenEngine.#tokens[mint].pnl_base), ts: TokenEngine.#tokens[mint].reg_timestamp });
                                     }
                                 }
                                 else if ((!Site.SIMULATION) && (!TokenEngine.#tokens[mint].added_in_simulation)) {
-                                    if (TokenEngine.realizedPnLLive.length > 0 ? (TokenEngine.realizedPnLLive[TokenEngine.realizedPnLLive.length - 1] != (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees)) : true) {
-                                        TokenEngine.realizedPnLLive.push({ pnl: (TokenEngine.#tokens[mint].pnl_base - TokenEngine.#tokens[mint].fees), ts: TokenEngine.#tokens[mint].reg_timestamp });
+                                    if (TokenEngine.realizedPnLLive.length > 0 ? (TokenEngine.realizedPnLLive[TokenEngine.realizedPnLLive.length - 1] != (TokenEngine.#tokens[mint].pnl_base)) : true) {
+                                        TokenEngine.realizedPnLLive.push({ pnl: (TokenEngine.#tokens[mint].pnl_base), ts: TokenEngine.#tokens[mint].reg_timestamp });
                                     }
                                 }
                             }
@@ -424,7 +424,7 @@ class TokenEngine {
                 if (TokenEngine.#tokens[mint].temp_open == 0) {
                     TokenEngine.#tokens[mint].temp_open = rate;
                 }
-                const PnL = ((TokenEngine.#tokens[mint].total_sold_base + (TokenEngine.#tokens[mint].current_price * TokenEngine.#tokens[mint].amount_held)) - TokenEngine.#tokens[mint].total_bought_base);
+                const PnL = (((TokenEngine.#tokens[mint].total_sold_base + (TokenEngine.#tokens[mint].current_price * TokenEngine.#tokens[mint].amount_held)) - TokenEngine.#tokens[mint].total_bought_base)) - TokenEngine.#tokens[mint].fees;
                 const pnlPerc = (((PnL / TokenEngine.#tokens[mint].total_bought_base) * 100) || 0);
                 TokenEngine.#tokens[mint].pnl_base = PnL;
                 TokenEngine.#tokens[mint].pnl = pnlPerc;
@@ -604,10 +604,10 @@ class TokenEngine {
                                 token.executed_peak_drops = [];
                                 token.executed_whale_exits = [];
                                 if (Site.SIMULATION && token.added_in_simulation && (token.pnl_base)) {
-                                    TokenEngine.realizedPnLSimulation.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
+                                    TokenEngine.realizedPnLSimulation.push({ pnl: (token.pnl_base), ts: token.reg_timestamp });
                                 }
                                 else if ((!Site.SIMULATION) && (!token.added_in_simulation)) {
-                                    TokenEngine.realizedPnLLive.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
+                                    TokenEngine.realizedPnLLive.push({ pnl: (token.pnl_base), ts: token.reg_timestamp });
                                 }
                                 token.max_pnl = 0;
                                 token.min_pnl = 0;
@@ -994,10 +994,10 @@ class TokenEngine {
                                     token.executed_peak_drops = [];
                                     token.executed_whale_exits = [];
                                     if (Site.SIMULATION && token.added_in_simulation && (token.pnl_base)) {
-                                        TokenEngine.realizedPnLSimulation.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
+                                        TokenEngine.realizedPnLSimulation.push({ pnl: (token.pnl_base), ts: token.reg_timestamp });
                                     }
                                     else if ((!Site.SIMULATION) && (!token.added_in_simulation)) {
-                                        TokenEngine.realizedPnLLive.push({ pnl: (token.pnl_base - token.fees), ts: token.reg_timestamp });
+                                        TokenEngine.realizedPnLLive.push({ pnl: (token.pnl_base), ts: token.reg_timestamp });
                                     }
                                     token.max_pnl = 0;
                                     token.min_pnl = 0;
