@@ -42,6 +42,6 @@ Miko, "Kiko-extended Milo", a high yield (profitable for me) and flexible degen 
 
 - Also, I switched back from Typescript to CommonJS cause I got tired of Typescript (It's great though, I have no reason). Maybe I no longer liked how my scripts looked after compilation (Though I know I can take care of it in the TS configuration JSON file).
 
-- August 2025: Since Pumpportal decided to put Pumpswap data stream behind a pay, I also decided to create my script that gets me whatever Pumpportal was supposed to give me from Pumpswap, for free, faster, and even added my extra data to it (like latency and liquidity). So, Miko gets to run for free, like always.
+- August 2025: Since Pumpportal decided to put Pumpswap data stream behind a paywall, I also decided to create my script that gets me whatever Pumpportal was supposed to give me from Pumpswap, for free, faster, and even added my extra data to it (like latency and liquidity). So, Miko gets to run for free, like always.
 
 God's speed!!!
