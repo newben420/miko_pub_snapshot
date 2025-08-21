@@ -23,6 +23,7 @@
     "express-session": "^1.18.1",
     "html-pdf-node": "^1.0.8",
     "jsonwebtoken": "^9.0.2",
+    "nats.ws": "^1.30.3",
     "natural": "^8.0.1",
     "node-fetch": "^3.3.2",
     "node-telegram-bot-api": "^0.66.0",

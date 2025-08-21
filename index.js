@@ -23,6 +23,7 @@ const SocketEngine = require('./engine/socket');
 const cookieParser = require("cookie-parser");
 const AuthEngine = require('./engine/auth');
 const rootDir = require('./root');
+const MigrateEngine = require('./engine/migrate');
 
 const ioServer = Site.UI ? require('socket.io')(server, {
     cors: {
@@ -90,6 +91,11 @@ const proceedAfterInit = () => {
             ws.send(JSON.stringify(payload));
         }
 
+        let payload = {
+            method: "subscribeMigration",
+        }
+        ws.send(JSON.stringify(payload));
+
         if (TokenEngine.getTokensMint().length > 0) {
             let payload = {
                 method: "subscribeTokenTrade",
@@ -137,6 +143,9 @@ const proceedAfterInit = () => {
                 TokenEngine.newTrade(message);
                 ObserverEngine.newTrade(message);
                 WhaleEngine.newTrade(message);
+            }
+            else if (message.txType == "migrate") {
+                MigrateEngine.newMigration(message);
             }
         }
     });

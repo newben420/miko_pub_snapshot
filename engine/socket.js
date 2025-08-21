@@ -156,6 +156,30 @@ class SocketEngine {
                 }
             });
 
+            socket.on("reset_token", async (mint, fn) => {
+                const token = TokenEngine.getToken(mint);
+                if(token){
+                    token.CSB = false;
+                    token.MP = 0;
+                    token.SLP = 0;
+                    token.amount_held = 0;
+                    token.bought_once = false;
+                    token.executed_peak_drops = [];
+                    token.executed_whale_exits = 0;
+                    token.fees = 0;
+                    token.max_pnl = 0;
+                    token.min_pnl = 0;
+                    token.pnl = 0;
+                    token.pnl_base = 0;
+                    token.total_bought_base = 0;
+                    token.total_sold_base = 0;
+                    fn(true);
+                }
+                else{
+                    fn(false);
+                }
+            });
+
             socket.on("close_token", () => {
                 delete SocketEngine.socketTokenMap[socket.id];
             });

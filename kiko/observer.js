@@ -63,6 +63,10 @@ class ObserverEngine {
      */
     static tokens = {};
 
+    static getToken = (mint) => {
+        return ObserverEngine.tokens[mint] || null;
+    }
+
     /**
      * Tokens that have passed through the launch phase are sent here to be observed.
      * @param {any} message 
@@ -193,7 +197,7 @@ class ObserverEngine {
                         ObserverEngine.tokens[mint].price = price;
                         ObserverEngine.tokens[mint].circulating_supply = (mc / ObserverEngine.tokens[mint].price) || 0;
                         if(ObserverEngine.tokens[mint].temp_open === 0){
-                            ObserverEngine.tokens[mint].temp_open = price;
+                            ObserverEngine.tokens[mint].temp_open =  (((ObserverEngine.tokens[mint].price_history || []).slice(-1)[0] || {}).close || 0) || price;
                         }
                         if(ObserverEngine.tokens[mint].temp_high === 0 || ObserverEngine.tokens[mint].temp_high < price){
                             ObserverEngine.tokens[mint].temp_high = price;

@@ -49,7 +49,8 @@
                 "TITLE": "Customization",
                 "DARK": "Dark Mode",
                 "LANG": "Language",
-                "SART": "Server Alerts"
+                "SART": "Server Alerts",
+                "HCON": "Hide Confirmations"
             }
         },
         "OBS": {
@@ -107,7 +108,8 @@
             "MENU": {
                 "CLOSE": "Close Window",
                 "DELETE": "Delete Token",
-                "COPY": "Copy Mint"
+                "COPY": "Copy Mint",
+                "RESET": "Reset Token"
             }
         },
         "LOGOUT": {

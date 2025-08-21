@@ -14,6 +14,7 @@ let WhaleEngine = null;
 let CandlestickEngine = null;
 
 let SocketEngine = null;
+let PumpswapEngine = null;
 
 const METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
@@ -166,6 +167,10 @@ class TokenEngine {
                         delete TokenEngine.#pdLastExec[mint];
                         delete TokenEngine.#isBeingRemoved[mint];
                         CandlestickEngine.removeToken(mint);
+                        if(!PumpswapEngine){
+                            PumpswapEngine = require("./pumpswap");
+                        }
+                        PumpswapEngine.unmonitor(mint);
                         if (Site.UI) {
                             if (!SocketEngine) {
                                 SocketEngine = require("./socket");
@@ -185,7 +190,7 @@ class TokenEngine {
                     resolve("");
                 }
             }
-            else{
+            else {
                 resolve("");
             }
         })
@@ -200,7 +205,7 @@ class TokenEngine {
             method: "subscribeTokenTrade",
             keys: [mint]
         }
-        if(TokenEngine.#ws){
+        if (TokenEngine.#ws) {
             TokenEngine.#ws.send(JSON.stringify(payload));
         }
     }
@@ -422,12 +427,15 @@ class TokenEngine {
                     TokenEngine.#tokens[mint].temp_low = rate;
                 }
                 if (TokenEngine.#tokens[mint].temp_open == 0) {
-                    TokenEngine.#tokens[mint].temp_open = rate;
+                    TokenEngine.#tokens[mint].temp_open = (((TokenEngine.#tokens[mint].price_history || []).slice(-1)[0] || {}).close || 0) || rate;
                 }
                 const PnL = (((TokenEngine.#tokens[mint].total_sold_base + (TokenEngine.#tokens[mint].current_price * TokenEngine.#tokens[mint].amount_held)) - TokenEngine.#tokens[mint].total_bought_base)) - TokenEngine.#tokens[mint].fees;
                 const pnlPerc = (((PnL / TokenEngine.#tokens[mint].total_bought_base) * 100) || 0);
                 TokenEngine.#tokens[mint].pnl_base = PnL;
                 TokenEngine.#tokens[mint].pnl = pnlPerc;
+                if (pnlPerc < TokenEngine.#tokens[mint].min_pnl || TokenEngine.#tokens[mint].min_pnl === 0) {
+                    TokenEngine.#tokens[mint].min_pnl = pnlPerc;
+                }
                 if (pnlPerc > TokenEngine.#tokens[mint].max_pnl || TokenEngine.#tokens[mint].max_pnl === 0) {
                     // UPDATE TRAILING STOP LOSSES
                     for (let i = 0; i < TokenEngine.#tokens[mint].pending_orders.length; i++) {
@@ -439,9 +447,6 @@ class TokenEngine {
                         }
                     }
                     TokenEngine.#tokens[mint].max_pnl = pnlPerc;
-                }
-                if (pnlPerc < TokenEngine.#tokens[mint].min_pnl || TokenEngine.#tokens[mint].min_pnl === 0) {
-                    TokenEngine.#tokens[mint].min_pnl = pnlPerc;
                 }
             }
 
@@ -956,7 +961,7 @@ class TokenEngine {
     static buy = (mint, amt, reason, retries = 0, marketcapLimit = [0, 0]) => {
         return new Promise(async (resolve, reject) => {
             const token = TokenEngine.getToken(mint);
-            if (token) {
+            if (token && (TokenEngine.getAllTokens().filter(x => x.amount_held > 0).length) < 2) {
                 Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt}.`, 3);
                 const availSlot = Object.keys(TokenEngine.#tokens).map(mint => TokenEngine.#tokens[mint]).filter(token => token.amount_held > 0 && token.mint != mint).length < Site.TOKEN_MAX_BUYS;
                 if (availSlot) {
@@ -1240,7 +1245,10 @@ class TokenEngine {
                             }
                         }, Site.TRADE_RETRY_TIMEOUT_MS);
                         if (TokenEngine.#tokens[mint]) {
-                            TokenEngine.#tokens[mint].fees += (0.000005);
+                            if ((!TokenEngine.#tokens[mint].fees) && (TokenEngine.#tokens[mint].fees !== 0)) {
+                                TokenEngine.#tokens[mint].fees = 0;
+                            }
+                            TokenEngine.#tokens[mint].fees = (TokenEngine.#tokens[mint].fees || 0) + 0.000005;
                         }
                         resolve(new Res(true, signature));
                     } else {

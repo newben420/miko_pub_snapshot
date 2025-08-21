@@ -22,7 +22,7 @@ const BUY_VOL_PERC_RANGE = (process.env.GR_AUDIT_BUY_VOL_PERC_RANGE || "").split
 
 class Site {
     static TITLE = process.env.TITLE ?? "STEGEN";
-    static PORT = parseInt(process.env.PORT || "5000");
+    static PORT = parseInt(process.env.PORT || "4000");
     static PRODUCTION = process.env.PRODUCTION == "true";
     static UI = (process.env.UI || "").toLowerCase() == "true";
     static TG = (process.env.TG || "").toLowerCase() == "true";
@@ -51,8 +51,6 @@ class Site {
     static DE_SLIPPAGE_PERC_ENTRY = parseFloat(process.env.DE_SLIPPAGE_PERC_ENTRY || "0");
     static DE_SLIPPAGE_PERC_EXIT = parseFloat(process.env.DE_SLIPPAGE_PERC_EXIT || "0");
     static DE_POOL = process.env.DE_POOL ?? "auto";
-    static DE_INACTIVITY_INTERVAL_MS = parseInt(process.env.DE_INACTIVITY_INTERVAL_MS || "4000");
-    static DE_INACTIVITY_TIMEOUT_MS = parseInt(process.env.DE_INACTIVITY_TIMEOUT_MS || "10000");
     static DE_BUY_AMOUNTS_SOL = (process.env.DE_BUY_AMOUNTS_SOL || "0.1 0.5 1 2 5 10").split(" ").filter(x => x.length > 0).map(x => parseFloat(x)).filter(x => ((!Number.isNaN(x)) ? (x > 0) : false));
     static DE_SELL_PERCS_SOL = (process.env.DE_SELL_PERCS_SOL || "25 50 100").split(" ").filter(x => x.length > 0).map(x => parseInt(x)).filter(x => ((!Number.isNaN(x)) ? (x > 0) : false));
 
@@ -201,6 +199,12 @@ class Site {
     static UI_DEV_URL = process.env.UI_DEV_URL || "/";
     static UI_CHART_MULTIPLES = (process.env.UI_CHART_MULTIPLES || "1 2 5").split(" ").map(x => parseInt(x)).filter(x => Number.isInteger(x) && x > 0);
     static UI_CHART_HEIGHT_PX = parseInt(process.env.UI_CHART_HEIGHT_PX || "0") || 0;
+
+    static PS_USE = (process.env.PS_USE || "").toLowerCase() == "true";
+    static PS_DEFAULT_DETAILS = Object.fromEntries((process.env.PS_DEFAULT_DETAILS || "").split(" ").filter(x => x.length > 0).map(x => x.split("=")).filter(x => x.length == 2).map(x => ([x[0], x[1]])));
+    static PS_RECONNECT_TIMEOUT_MS = parseInt(process.env.PS_RECONNECT_TIMEOUT_MS || "0") || 0;
+    static PS_MAX_RECON_RETRIES = parseInt(process.env.PS_MAX_RECON_RETRIES || "0") || 5;
+    static PS_PF_TOTAL_SUPPLY = parseFloat(process.env.PS_PF_TOTAL_SUPPLY || "0") || 1_000_000_000_000_000;
 }
 
 module.exports = Site;

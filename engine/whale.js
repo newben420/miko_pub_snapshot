@@ -25,6 +25,11 @@ class Whale {
     isOG;
 
     /**
+     * @type {boolean}
+     */
+    isDev;
+
+    /**
      * @type {number}
      */
     initialAmount;
@@ -53,10 +58,12 @@ class Whale {
      * Object constructor
      * @param {any} data 
      * @param {boolean} isOG 
+     * @param {string|null} dev 
      */
-    constructor(data, isOG) {
+    constructor(data, isOG, dev) {
         const { trader, amount } = data;
         this.isOG = isOG;
+        this.isDev = (dev != null) && (dev == trader);  
         this.trader = trader;
         this.currentAmount = amount;
         this.initialAmount = amount;
@@ -150,10 +157,11 @@ class WhaleEngine {
      * Adds new token to be tracked
      * @param {string} mint 
      * @param {any[]} topHolders 
+     * @param {string} dev 
      */
-    static newToken = (mint, topHolders) => {
+    static newToken = (mint, topHolders, dev) => {
         if (!WhaleEngine.#data[mint]) {
-            WhaleEngine.#data[mint] = topHolders.slice(0, Site.WH_MAX_WHALES).map(data => (new Whale(data, true)));
+            WhaleEngine.#data[mint] = topHolders.slice(0, Site.WH_MAX_WHALES).map(data => (new Whale(data, true, dev)));
             WhaleEngine.#log[mint] = [];
             WhaleEngine.#MC[mint] = 0;
             WhaleEngine.#unloggedSelfActions[mint] = new Set();
@@ -253,7 +261,7 @@ class WhaleEngine {
                         if (replacedWhale) {
                             replacedWhale = structuredClone(replacedWhale);
                         }
-                        WhaleEngine.#data[mint].splice(ind, (WhaleEngine.#data[mint].length >= Site.WH_MAX_WHALES) ? 1 : 0, (new Whale({ trader: traderPublicKey, amount: newTokenBalance }, false)));
+                        WhaleEngine.#data[mint].splice(ind, (WhaleEngine.#data[mint].length >= Site.WH_MAX_WHALES) ? 1 : 0, (new Whale({ trader: traderPublicKey, amount: newTokenBalance }, false, null)));
                         WhaleEngine.#log[mint].push(`${getDateTime2()} W${(ind + 1)} ${replacedWhale ? `is replaced.` : `is overtaken.`}${mcChange}${acts}`);
                         if (Site.UI) {
                             if (!SocketEngine) {
@@ -367,7 +375,7 @@ class WhaleEngine {
         if ((!WhaleEngine.#data[mint])) {
             return m;
         }
-        m += `${WhaleEngine.#data[mint].map((whale, i) => `<span>W${(i + 1)}${whale.isOG ? `(OG)` : ``} 🔸 ${Math.max(-100, (((whale.currentAmount - whale.initialAmount) / whale.initialAmount) * 100)).toFixed(2)}%</span>`).join("")}`;
+        m += `${WhaleEngine.#data[mint].map((whale, i) => `<span class="${whale.isOG ? `` : `text-success`} ${whale.isDev ? `text-danger` : ``}">W${(i + 1).toString().padStart(2, '0')} <i class="bi bi-record-fill mx-2"></i> <span class="fw-bold">${FFF(Math.max(-100, (((whale.currentAmount - whale.initialAmount) / whale.initialAmount) * 100)))}%</span></span>`).join("")}`;
         return m;
     }
 }
