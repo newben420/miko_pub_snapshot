@@ -132,20 +132,25 @@ const proceedAfterInit = () => {
             Log.flow(`WebSocket > Message > ${message.message}`, 4);
         }
         else {
-            if (message.txType == "create") {
-                // NEW TOKEN
-                if (await LaunchEngine.check(message)) {
-                    ObserverEngine.newToken(message);
+            if (message.mint ? MigrateEngine.recentlyMigrated.includes(message.mint) : false) {
+                // Withhold message
+            }
+            else {
+                if (message.txType == "create") {
+                    // NEW TOKEN
+                    if (await LaunchEngine.check(message)) {
+                        ObserverEngine.newToken(message);
+                    }
                 }
-            }
-            else if (message.txType == "buy" || message.txType == "sell") {
-                // OTHER SUBSCRIBED TRANSACTIONS
-                TokenEngine.newTrade(message);
-                ObserverEngine.newTrade(message);
-                WhaleEngine.newTrade(message);
-            }
-            else if (message.txType == "migrate") {
-                MigrateEngine.newMigration(message);
+                else if (message.txType == "buy" || message.txType == "sell") {
+                    // OTHER SUBSCRIBED TRANSACTIONS
+                    TokenEngine.newTrade(message);
+                    ObserverEngine.newTrade(message);
+                    WhaleEngine.newTrade(message);
+                }
+                else if (message.txType == "migrate") {
+                    MigrateEngine.newMigration(message);
+                }
             }
         }
     });

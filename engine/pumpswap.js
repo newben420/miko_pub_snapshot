@@ -3,12 +3,14 @@ const { connect, NatsConnection, StringCodec, Subscription } = require("nats.ws"
 const Log = require("../lib/log");
 const parseHexFloat = require("../lib/parse_hex_float");
 const { get } = require("axios");
+const getTimeElapsed = require("../lib/get_time_elapsed");
 
 let TokenEngine = null;
 let ObserverEngine = null;
 let WhaleEngine = null;
 const MAX_RETRIES = Site.PS_MAX_RECON_RETRIES;
 let RETRIES = 0;
+const RETRY_INTERVAL = Site.PS_RETRIES_INTERVAL_MS;
 
 class PumpswapEngine {
 
@@ -342,11 +344,20 @@ class PumpswapEngine {
     /**
      * @param {string} mint 
      * @param {(data: any) => void} callback 
+     * @param {number} retries 
      * @returns {Promise<boolean>}
      */
-    static monitor = (mint, callback = (data) => {}) => new Promise(async (resolve, reject) => {
-        Log.flow(`PSE > Monitor > ${mint} > Initialized.`, 3);
+    static monitor = (mint, callback = (data) => { }, retries = 0) => new Promise(async (resolve, reject) => {
+        Log.flow(`PSE > Monitor > ${mint} > ${retries ? `Retry ${retries}` : `Initialized`}.`, 3);
         const meta = await PumpswapEngine.#resolveMetadata(mint);
+        const retry = () => {
+            if (retries < MAX_RETRIES && MAX_RETRIES && RETRY_INTERVAL) {
+                Log.flow(`PSE > Monitor > ${mint} > Failed. Attempting retry ${(retries + 1)} in ${getTimeElapsed(0, RETRY_INTERVAL)}.`, 3);
+                setTimeout(() => {
+                    PumpswapEngine.monitor(mint, callback, (retries + 1));
+                }, RETRY_INTERVAL);
+            }
+        }
         if (meta) {
             const {
                 pool,
@@ -364,12 +375,14 @@ class PumpswapEngine {
                     resolve(true);
                 }
                 else {
+                    retry();
                     resolve(false);
                 }
             }
         }
         else {
             Log.flow(`PSE > Monitor > ${mint} > Could not get metadata.`, 3);
+            retry();
             resolve(false);
         }
     });

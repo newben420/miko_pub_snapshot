@@ -4,11 +4,26 @@ const Log = require("../lib/log");
 const PumpswapEngine = require("./pumpswap");
 const TokenEngine = require("./token");
 
+const MAX_LENGTH = 50;
+
 class MigrateEngine {
+
+    /**
+     * @type {string[]}
+     */
+    static recentlyMigrated = [];
+
     static newMigration = async (data) => {
         const { mint } = data;
         Log.flow(`Migrate > ${mint} > Initialized.`, 3);
         if (mint) {
+            if(!MigrateEngine.recentlyMigrated.includes(mint)){
+                MigrateEngine.recentlyMigrated.push(mint);
+            }
+            if(MigrateEngine.recentlyMigrated.length > MAX_LENGTH){
+                MigrateEngine.recentlyMigrated = MigrateEngine.recentlyMigrated.slice(MigrateEngine.recentlyMigrated.length - MAX_LENGTH);
+            }
+
             if (TokenEngine.getToken(mint)) {
                 PumpswapEngine.monitor(mint);
             }

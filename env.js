@@ -205,6 +205,7 @@ class Site {
     static PS_RECONNECT_TIMEOUT_MS = parseInt(process.env.PS_RECONNECT_TIMEOUT_MS || "0") || 0;
     static PS_MAX_RECON_RETRIES = parseInt(process.env.PS_MAX_RECON_RETRIES || "0") || 5;
     static PS_PF_TOTAL_SUPPLY = parseFloat(process.env.PS_PF_TOTAL_SUPPLY || "0") || 1_000_000_000_000_000;
+    static PS_RETRIES_INTERVAL_MS = parseInt(process.env.PS_RETRIES_INTERVAL_MS || "0") || 5000;
 }
 
 module.exports = Site;
