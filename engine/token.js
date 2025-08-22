@@ -239,6 +239,10 @@ class TokenEngine {
                 if (metadata) {
                     const { name, symbol, description, pool } = metadata;
                     TokenEngine.#startObservation(mint);
+                    if(!PumpswapEngine){
+                        PumpswapEngine = require("./pumpswap");
+                    }
+                    PumpswapEngine.monitor(mint);
                     TokenEngine.#tokens[mint] = new Token(name, symbol, mint, description, source);
                     TokenEngine.#tokens[mint].remove_ref = TokenEngine.removeToken;
                     if ((Site.AU_BUY_DESC_REQUIRED ? description : true) && TokenEngine.autoBuy && TokenEngine.#tokens[mint].source == "Kiko") {
