@@ -206,6 +206,8 @@ class Site {
     static PS_MAX_RECON_RETRIES = parseInt(process.env.PS_MAX_RECON_RETRIES || "0") || 5;
     static PS_PF_TOTAL_SUPPLY = parseFloat(process.env.PS_PF_TOTAL_SUPPLY || "0") || 1_000_000_000_000_000;
     static PS_RETRIES_INTERVAL_MS = parseInt(process.env.PS_RETRIES_INTERVAL_MS || "0") || 5000;
+    
+    static MAX_CONCURRENT_TRADES = Math.max(0, (parseInt(process.env.MAX_CONCURRENT_TRADES || "0") || 0)) || Number.MAX_SAFE_INTEGER;
 }
 
 module.exports = Site;

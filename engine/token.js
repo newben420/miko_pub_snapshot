@@ -965,7 +965,7 @@ class TokenEngine {
     static buy = (mint, amt, reason, retries = 0, marketcapLimit = [0, 0]) => {
         return new Promise(async (resolve, reject) => {
             const token = TokenEngine.getToken(mint);
-            if (token && (TokenEngine.getAllTokens().filter(x => x.amount_held > 0).length) < 2) {
+            if (token && (TokenEngine.getAllTokens().filter(x => x.amount_held > 0).length) < Site.MAX_CONCURRENT_TRADES) {
                 Log.flow(`Buy > ${token.symbol} > ${reason} > ${Site.BASE} ${amt}.`, 3);
                 const availSlot = Object.keys(TokenEngine.#tokens).map(mint => TokenEngine.#tokens[mint]).filter(token => token.amount_held > 0 && token.mint != mint).length < Site.TOKEN_MAX_BUYS;
                 if (availSlot) {
