@@ -705,10 +705,11 @@ class TokenEngine {
                     const maxPnl = TokenEngine.#tokens[mint].max_pnl;
                     const allocation = TokenEngine.#tokens[mint].amount_held + 0;
                     const drop = maxPnl - pnl;
-                    const reached = pnl >= pd.minPnLPerc && (pd.maxPnLPerc ? (pnl <= pd.maxPnLPerc) : true) && drop >= pd.minDropPerc;
+                    const dropPerc = (drop / maxPnl) * 100;
+                    const reached = pnl <= maxPnl && pnl >= pd.minPnLPerc && (pd.maxPnLPerc ? (pnl <= pd.maxPnLPerc) : true) && dropPerc >= pd.minDropPerc;
                     if (reached) {
                         TokenEngine.#pdLastExec[mint] = Date.now();
-                        const done = await TokenEngine.sell(mint, pd.sellPerc, `Peak Drop ${drop.toFixed(2)}%`, Site.TRADE_MAX_RETRIES_EXIT, [0, 0]);
+                        const done = await TokenEngine.sell(mint, pd.sellPerc, `Peak Drop ${drop.toFixed(2)}% ${dropPerc.toFixed(2)}%`, Site.TRADE_MAX_RETRIES_EXIT, [0, 0]);
                         if (done) {
                             if (!TelegramEngine) {
                                 TelegramEngine = require("./telegram");
